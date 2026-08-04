@@ -18,7 +18,7 @@
         "schema_version": {"const": "0.1.0"},
         "action_id": {"$ref": "#/$defs/nonempty"},
         "study_id": {"$ref": "#/$defs/nonempty"},
-        "run_mode": {"enum": ["official", "local_mock"]},
+        "run_mode": {"enum": ["official_candidate", "official", "local_mock"]},
         "code_commit": {"$ref": "#/$defs/commit"},
         "image_bindings": {
             "type": "array",
@@ -28,6 +28,7 @@
             "items": {"$ref": "#/$defs/image_binding"}
         },
         "execution_surface_ref": {"$ref": "#/$defs/file_ref"},
+        "provider_binding_ref": {"$ref": "#/$defs/file_ref"},
         "input_lock_ref": {"$ref": "#/$defs/file_ref"},
         "model": {"$ref": "#/$defs/model"},
         "benchmarks": {
@@ -55,6 +56,13 @@
         "benchmark_adapter": {"$ref": "#/$defs/benchmark_adapter"}
     },
     "allOf": [
+        {
+            "if": {"properties": {"run_mode": {"const": "official_candidate"}}},
+            "then": {
+                "required": ["provider_binding_ref"],
+                "properties": {"official_authorization_ref": {"type": "null"}, "official_key_registry_ref": {"type": "null"}}
+            }
+        },
         {
             "if": {"properties": {"run_mode": {"const": "official"}}},
             "then": {"properties": {"official_authorization_ref": {"$ref": "#/$defs/file_ref"}}}
@@ -98,6 +106,21 @@
             },
             "additionalProperties": false
         },
+        "sampling": {
+            "type": "object",
+            "required": ["temperature", "top_p", "top_k", "reasoning_parser", "tool_call_parser"],
+            "properties": {
+                "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+                "top_p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+                "top_k": {"type": "integer", "minimum": 0},
+                "presence_penalty": {"type": "number", "minimum": -2, "maximum": 2},
+                "repetition_penalty": {"type": "number", "exclusiveMinimum": 0, "maximum": 2},
+                "thinking_mode": {"type": "boolean"},
+                "reasoning_parser": {"const": "qwen3"},
+                "tool_call_parser": {"const": "qwen3_coder"}
+            },
+            "additionalProperties": false
+        },
         "model": {
             "type": "object",
             "required": ["repository", "revision", "tokenizer_revision", "serving_engine", "serving_engine_version", "sampling"],
@@ -114,8 +137,20 @@
                         "temperature": {"type": "number", "minimum": 0, "maximum": 2},
                         "top_p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
                         "top_k": {"type": "integer", "minimum": 0},
+                        "presence_penalty": {"type": "number", "minimum": -2, "maximum": 2},
+                        "repetition_penalty": {"type": "number", "exclusiveMinimum": 0, "maximum": 2},
+                        "thinking_mode": {"type": "boolean"},
                         "reasoning_parser": {"const": "qwen3"},
                         "tool_call_parser": {"const": "qwen3_coder"}
+                    },
+                    "additionalProperties": false
+                },
+                "sampling_by_benchmark": {
+                    "type": "object",
+                    "required": ["swe_multilang", "tau2"],
+                    "properties": {
+                        "swe_multilang": {"$ref": "#/$defs/sampling"},
+                        "tau2": {"$ref": "#/$defs/sampling"}
                     },
                     "additionalProperties": false
                 }
@@ -141,9 +176,11 @@
             "required": ["contract_id", "root_u64", "draw_domains", "seeds"],
             "properties": {
                 "contract_id": {"const": "official-study-rng-v1"},
-                "root_u64": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+                "root_u64": {"oneOf": [{"type": "integer", "minimum": 0, "maximum": 18446744073709551615}, {"type": "null"}]},
                 "draw_domains": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}},
-                "seeds": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/sha256"}}
+                "seeds": {"type": "object", "additionalProperties": {"$ref": "#/$defs/sha256"}},
+                "status": {"enum": ["pending_commitments", "sealed"]},
+                "commitment_ref": {"$ref": "#/$defs/file_ref"}
             },
             "additionalProperties": false
         },
@@ -197,7 +234,8 @@
             "properties": {
                 "adapter_id": {"$ref": "#/$defs/nonempty"},
                 "entrypoint": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}},
-                "timeout_seconds": {"type": "integer", "exclusiveMinimum": 0}
+                "timeout_seconds": {"type": "integer", "exclusiveMinimum": 0},
+                "adapter_manifest_ref": {"$ref": "#/$defs/file_ref"}
             },
             "additionalProperties": false
         }

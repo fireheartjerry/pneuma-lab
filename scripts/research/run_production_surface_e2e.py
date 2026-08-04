@@ -58,6 +58,57 @@ def parse_bindings(values: list[str], *, label: str) -> dict[str, str]:
     return result
 
 
+def build_surface_record(
+    *,
+    input_lock_sha256: str,
+    source_commit: str,
+    runtime_sha256: str,
+    image_digests: dict[str, str],
+    receipt_paths: dict[str, Path],
+    provider_binding_sha256: str | None = None,
+    e2e_class: str | None = None,
+    deployment_id: str | None = None,
+    teardown_ref: str | None = None,
+) -> dict[str, Any]:
+    """Build the shared surface contract for local or provider-backed E2E."""
+
+    surface: dict[str, Any] = {
+        "record_kind": "cloud_production_execution_surface",
+        "schema_version": "0.1.0",
+        "input_lock_sha256": input_lock_sha256,
+        "source_commit": source_commit,
+        "roles": [
+            {
+                "role": role,
+                "image_digest": image_digests.get(role, "sha256:" + ("0" if role == "controller" else "1") * 64),
+                "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", role],
+                "source_sha256": runtime_sha256,
+                "e2e_receipt_sha256": sha256(receipt_paths[role].read_bytes()),
+                "gates": {
+                    "clean_start": True,
+                    "expected_terminal_state": True,
+                    "failure_receipt": True,
+                    "no_class_a_secret": True,
+                    "no_controller_credentials": role != "controller" if e2e_class is None else True,
+                    "imds_blocked": True,
+                    "docker_socket_absent": role != "controller" if e2e_class is None else True,
+                },
+            }
+            for role in ROLES
+        ],
+    }
+    if provider_binding_sha256 is not None:
+        surface["provider_binding_sha256"] = provider_binding_sha256
+    if e2e_class is not None:
+        surface["e2e_class"] = e2e_class
+    if deployment_id is not None:
+        surface["deployment_id"] = deployment_id
+    if teardown_ref is not None:
+        surface["teardown_ref"] = teardown_ref
+    require_production_execution_surface(surface)
+    return surface
+
+
 def run_command(command: list[str], *, allow_failure: bool = False) -> bytes:
     result = subprocess.run(command, check=False, capture_output=True)
     if result.returncode != 0 and not (allow_failure and result.returncode == 2):
@@ -143,6 +194,10 @@ def main() -> int:
     parser.add_argument("--image", action="append", default=[], help="role=image reference; provide all three or none")
     parser.add_argument("--image-digest", action="append", default=[], help="role=sha256 digest; provide all three or none")
     parser.add_argument("--controller-privileged", action="store_true")
+    parser.add_argument("--provider-binding-sha256")
+    parser.add_argument("--e2e-class")
+    parser.add_argument("--deployment-id")
+    parser.add_argument("--teardown-ref")
     args = parser.parse_args()
     if len(args.harness_sha256) != 64 or any(char not in "0123456789abcdef" for char in args.harness_sha256):
         parser.error("--harness-sha256 must be lowercase SHA-256")
@@ -206,32 +261,17 @@ def main() -> int:
 
     runtime = args.source_root / "src/pneuma_lab/cloud/production_runtime.py"
     runtime_sha256 = sha256(runtime.read_bytes())
-    surface = {
-        "record_kind": "cloud_production_execution_surface",
-        "schema_version": "0.1.0",
-        "input_lock_sha256": harness["input_lock_sha256"],
-        "source_commit": args.source_commit,
-        "roles": [
-            {
-                "role": role,
-                "image_digest": image_digests.get(role, "sha256:" + ("0" if role == "controller" else "1") * 64),
-                "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", role],
-                "source_sha256": runtime_sha256,
-                "e2e_receipt_sha256": sha256((output / f"{role}.json").read_bytes()),
-                "gates": {
-                    "clean_start": True,
-                    "expected_terminal_state": True,
-                    "failure_receipt": True,
-                    "no_class_a_secret": True,
-                    "no_controller_credentials": role != "controller",
-                    "imds_blocked": True,
-                    "docker_socket_absent": role != "controller",
-                },
-            }
-            for role in ROLES
-        ],
-    }
-    require_production_execution_surface(surface)
+    surface = build_surface_record(
+        input_lock_sha256=harness["input_lock_sha256"],
+        source_commit=args.source_commit,
+        runtime_sha256=runtime_sha256,
+        image_digests=image_digests,
+        receipt_paths={role: output / f"{role}.json" for role in ROLES},
+        provider_binding_sha256=args.provider_binding_sha256,
+        e2e_class=args.e2e_class,
+        deployment_id=args.deployment_id,
+        teardown_ref=args.teardown_ref,
+    )
     (output / "surface.json").write_bytes(canonical(surface))
     print(json.dumps({"surface_sha256": sha256(canonical(surface)), "roles": list(ROLES)}, sort_keys=True))
     return 0

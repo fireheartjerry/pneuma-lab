@@ -1,0 +1,32 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-official-analysis-graph.schema.json",
+    "title": "Official Analysis Graph Candidate",
+    "description": "Digest-bound analysis source graph for launch preparation; it does not contain results or an analysis receipt.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "study_id", "status", "graph_id", "sources"],
+    "properties": {
+        "record_kind": {"const": "cloud_official_analysis_graph"},
+        "schema_version": {"const": "0.1.0"},
+        "study_id": {"const": "neurips-2026-resampling-null"},
+        "status": {"const": "frozen_candidate_no_results"},
+        "graph_id": {"const": "resampling-null-registered-analysis-graph-v1"},
+        "sources": {
+            "type": "array",
+            "minItems": 5,
+            "uniqueItems": true,
+            "items": {
+                "type": "object",
+                "required": ["path", "sha256"],
+                "properties": {
+                    "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$)).+"},
+                    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

@@ -20,7 +20,7 @@ EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
 EXPECTED_RESAMPLING_COUNT = 16
-EXPECTED_CLOUD_COUNT = 39
+EXPECTED_CLOUD_COUNT = 48
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -241,6 +241,15 @@ def test_cloud_schema_bucket_registered() -> None:
         "cloud-production-worker-evidence.schema.json",
         "cloud-production-raw-worker-output.schema.json",
         "cloud-production-controller-state.schema.json",
+        "cloud-production-provider-binding.schema.json",
+        "cloud-production-image-receipt.schema.json",
+        "cloud-production-surface-e2e-receipt.schema.json",
+        "cloud-registered-benchmark-adapter-manifest.schema.json",
+        "cloud-official-roster-candidate.schema.json",
+        "cloud-official-assignment-pending.schema.json",
+        "cloud-official-rng-commitment.schema.json",
+        "cloud-official-analysis-graph.schema.json",
+        "cloud-official-input-package.schema.json",
         "cloud-official-study-authorization.schema.json",
         "cloud-lease-contention-qualification-receipt.schema.json",
         "cloud-lease-contention-cleanup-receipt.schema.json",

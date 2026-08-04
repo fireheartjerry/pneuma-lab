@@ -1,0 +1,34 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-official-assignment-pending.schema.json",
+    "title": "Pending Official Assignment Input",
+    "description": "A non-authorizing assignment placeholder that freezes the required program and forbids fabricated assignments until the live ceremony and power decision close.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "study_id", "status", "synthetic_substitute_forbidden", "input_lock_sha256", "roster_candidate_sha256", "assignment_program", "assignment_master_key_status", "sealed_assignment_ref"],
+    "properties": {
+        "record_kind": {"const": "cloud_official_assignment_pending"},
+        "schema_version": {"const": "0.1.0"},
+        "study_id": {"const": "neurips-2026-resampling-null"},
+        "status": {"const": "pending_live_authority"},
+        "synthetic_substitute_forbidden": {"const": true},
+        "input_lock_sha256": {"$ref": "#/$defs/sha256"},
+        "roster_candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "assignment_program": {
+            "type": "object",
+            "required": ["contract_id", "matching_algorithm", "domains", "draw_contract"],
+            "properties": {
+                "contract_id": {"const": "registered-assignment-program-v1"},
+                "matching_algorithm": {"const": "frozen-prefix-paired-matching-v1"},
+                "domains": {"const": ["swe_multilang", "tau2"]},
+                "draw_contract": {"const": "assignment-master-key-derived-frame-v1"}
+            },
+            "additionalProperties": false
+        },
+        "assignment_master_key_status": {"const": "unrevealed"},
+        "sealed_assignment_ref": {"type": "null"}
+    },
+    "additionalProperties": false,
+    "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

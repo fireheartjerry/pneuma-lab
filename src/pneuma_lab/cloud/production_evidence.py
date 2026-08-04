@@ -115,7 +115,12 @@ class OpenAICompatibleModelAdapter:
 
     def generate(self, request: Mapping[str, object]) -> ModelResponse:
         model = cast(Mapping[str, object], self.spec.value["model"])
-        sampling = cast(Mapping[str, object], model["sampling"])
+        benchmark = request.get("benchmark")
+        sampling_values = model.get("sampling_by_benchmark")
+        if isinstance(sampling_values, Mapping) and benchmark in sampling_values:
+            sampling = cast(Mapping[str, object], sampling_values[benchmark])
+        else:
+            sampling = cast(Mapping[str, object], model["sampling"])
         body = {
             "model": OFFICIAL_MODEL_REPOSITORY,
             "messages": [{"role": "user", "content": request["prompt"]}],
@@ -125,6 +130,9 @@ class OpenAICompatibleModelAdapter:
             "seed": cast(Mapping[str, object], self.spec.value["rng"])["root_u64"],
             "max_tokens": request["max_tokens"],
         }
+        for field in ("presence_penalty", "repetition_penalty"):
+            if field in sampling:
+                body[field] = sampling[field]
         encoded = canonical_bytes(body)
         http_request = urllib_request.Request(
             self.endpoint,
@@ -291,6 +299,8 @@ class ProductionWorkerExecutor:
     ) -> None:
         self.spec = spec
         self.run_root = run_root
+        if spec.run_mode == "official_candidate":
+            raise CloudManifestError("pre-launch official candidate cannot execute a worker")
         if spec.run_mode == "local_mock":
             if model_adapter is not None and not isinstance(model_adapter, LocalMockModelAdapter):
                 raise CloudManifestError("local_mock requires the local mock model adapter")
@@ -319,7 +329,7 @@ class ProductionWorkerExecutor:
             task = rows[work_id]
             input_sha256 = canonical_digest(task)
             try:
-                request = self.benchmark_adapter.prepare(task)
+                request = {**dict(self.benchmark_adapter.prepare(task)), "benchmark": task["benchmark"]}
                 response = self.model_adapter.generate(request)
                 benchmark_output = self.benchmark_adapter.evaluate(task, response)
                 model_sha256 = response.sha256

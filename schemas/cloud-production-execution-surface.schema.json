@@ -12,6 +12,10 @@
         "schema_version": {"const": "0.1.0"},
         "input_lock_sha256": {"$ref": "#/$defs/digest"},
         "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "provider_binding_sha256": {"$ref": "#/$defs/digest"},
+        "e2e_class": {"const": "non_scientific_bounded_surface"},
+        "deployment_id": {"type": "string", "minLength": 1},
+        "teardown_ref": {"$ref": "#/$defs/digest"},
         "roles": {
             "type": "array",
             "minItems": 3,

@@ -1,0 +1,69 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-production-image-receipt.schema.json",
+    "title": "Production Image Receipt",
+    "description": "Immutable production role image, SBOM, provenance, and bounded-surface binding. It is not qualification evidence and not scientific evidence.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "evidence_class", "role", "source_commit", "dockerfile", "base_image", "image_ref", "image_digest", "sbom", "provenance", "build", "surface_e2e_status"],
+    "properties": {
+        "record_kind": {"const": "cloud_production_image_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "evidence_class": {"const": "production_surface_non_scientific"},
+        "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "dockerfile": {"type": "string", "pattern": "^infra/docker/(controller|model-server|benchmark-worker)/Dockerfile$"},
+        "base_image": {
+            "type": "object",
+            "required": ["repository", "digest", "platform"],
+            "properties": {"repository": {"const": "docker.io/vllm/vllm-openai"}, "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "platform": {"const": "linux/amd64"}},
+            "additionalProperties": false
+        },
+        "image_ref": {"type": "string", "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/pneuma-official-production-(controller|model-server|benchmark-worker)@sha256:[0-9a-f]{64}$"},
+        "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "sbom": {
+            "type": "object",
+            "required": ["format", "tool", "version", "release_url", "release_tar_sha256", "sha256", "byte_count"],
+            "properties": {
+                "format": {"const": "spdx-json"},
+                "tool": {"const": "syft"},
+                "version": {"const": "1.50.0"},
+                "release_url": {"const": "https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_amd64.tar.gz"},
+                "release_tar_sha256": {"const": "bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788"},
+                "sha256": {"$ref": "#/$defs/sha256"},
+                "byte_count": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["attestation_format", "sha256", "builder", "source_uri"],
+            "properties": {
+                "attestation_format": {"const": "buildkit-in-toto-provenance"},
+                "sha256": {"$ref": "#/$defs/sha256"},
+                "builder": {"const": "docker-buildx-provenance-mode-max"},
+                "source_uri": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        },
+        "build": {
+            "type": "object",
+            "required": ["platform", "tag_mutability", "scan_on_push", "encryption", "source_date_epoch", "network", "model_download", "benchmark_execution"],
+            "properties": {
+                "platform": {"const": "linux/amd64"},
+                "tag_mutability": {"const": "IMMUTABLE"},
+                "scan_on_push": {"const": true},
+                "encryption": {"const": "AES256"},
+                "source_date_epoch": {"type": "integer", "minimum": 0},
+                "network": {"const": "buildkit-default-no-runtime-workload"},
+                "model_download": {"const": false},
+                "benchmark_execution": {"const": false}
+            },
+            "additionalProperties": false
+        },
+        "surface_e2e_status": {"const": "pending_bounded_surface_e2e"}
+    },
+    "additionalProperties": false,
+    "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}}
+}

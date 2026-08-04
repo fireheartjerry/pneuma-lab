@@ -1,0 +1,91 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-production-surface-e2e-receipt.schema.json",
+    "title": "Bounded Production Surface E2E Receipt",
+    "description": "Non-scientific provider-surface admission evidence with controller restart/observation-error and teardown proof.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "evidence_class", "action_id", "provider", "region", "provider_binding_sha256", "image_receipt_refs", "surface_sha256", "controller", "admission", "cost", "teardown"],
+    "properties": {
+        "record_kind": {"const": "cloud_production_surface_e2e_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "evidence_class": {"const": "production_surface_non_scientific"},
+        "action_id": {"type": "string", "pattern": "^official-surface-e2e-[0-9]{8}$"},
+        "provider": {"const": "aws"},
+        "region": {"const": "us-east-1"},
+        "provider_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "image_receipt_refs": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/file_ref"}},
+        "surface_sha256": {"$ref": "#/$defs/sha256"},
+        "controller": {
+            "type": "object",
+            "required": ["submitted_once", "restart_reconciled", "observation_error_preserved_submission", "terminal_observed", "explicit_teardown_phase"],
+            "properties": {
+                "submitted_once": {"const": true},
+                "restart_reconciled": {"const": true},
+                "observation_error_preserved_submission": {"const": true},
+                "terminal_observed": {"const": true},
+                "explicit_teardown_phase": {"const": true}
+            },
+            "additionalProperties": false
+        },
+        "admission": {
+            "type": "object",
+            "required": ["instance_type", "capacity_type", "max_duration_seconds", "max_attempts", "model_download", "benchmark_execution", "official_study", "canonical_p0_grid", "roster_ceremony", "unblind", "analysis"],
+            "properties": {
+                "instance_type": {"const": "m7i.large"},
+                "capacity_type": {"const": "on-demand"},
+                "max_duration_seconds": {"const": 900},
+                "max_attempts": {"const": 1},
+                "model_download": {"const": false},
+                "benchmark_execution": {"const": false},
+                "official_study": {"const": false},
+                "canonical_p0_grid": {"const": false},
+                "roster_ceremony": {"const": false},
+                "unblind": {"const": false},
+                "analysis": {"const": false}
+            },
+            "additionalProperties": false
+        },
+        "cost": {
+            "type": "object",
+            "required": ["projected_usd", "actual_usd_upper_bound", "currency", "price_source_sha256"],
+            "properties": {
+                "projected_usd": {"type": "number", "minimum": 0},
+                "actual_usd_upper_bound": {"type": "number", "minimum": 0},
+                "currency": {"const": "USD"},
+                "price_source_sha256": {"$ref": "#/$defs/sha256"}
+            },
+            "additionalProperties": false
+        },
+        "teardown": {
+            "type": "object",
+            "required": ["status", "terminated", "network_deleted", "iam_deleted", "fresh_provider_absence", "retained_ecr_images"],
+            "properties": {
+                "status": {"const": "COMPLETE"},
+                "terminated": {"const": true},
+                "network_deleted": {"const": true},
+                "iam_deleted": {"const": true},
+                "fresh_provider_absence": {"const": true},
+                "retained_ecr_images": {"const": true}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "file_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": {"type": "string", "minLength": 1},
+                "relative_path": {"type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"},
+                "sha256": {"$ref": "#/$defs/sha256"},
+                "byte_count": {"type": "integer", "minimum": 1},
+                "media_type": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        }
+    }
+}

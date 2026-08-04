@@ -20,6 +20,7 @@ from .authorization_keys import trusted_now, verify_ledger_binding, verify_signa
 from .errors import CloudManifestError
 from .manifests import (
     validate_official_study_authorization,
+    validate_production_provider_binding,
     validate_production_run_spec,
 )
 from .production_surface import require_production_execution_surface
@@ -177,8 +178,8 @@ class ProductionRunSpec:
         return cls.from_mapping(cast(Mapping[str, object], value), digest=observed)
 
     @property
-    def run_mode(self) -> Literal["official", "local_mock"]:
-        return cast(Literal["official", "local_mock"], self.value["run_mode"])
+    def run_mode(self) -> Literal["official_candidate", "official", "local_mock"]:
+        return cast(Literal["official_candidate", "official", "local_mock"], self.value["run_mode"])
 
     @property
     def study_id(self) -> str:
@@ -205,6 +206,18 @@ class ProductionRunSpec:
     def file_binding(self, field: str) -> FileBinding:
         return FileBinding.from_value(self.value[field], field=field)
 
+    def verify_provider_binding(self, *, run_root: Path) -> Mapping[str, object]:
+        """Validate the concrete provider contract bound by a production plan."""
+
+        if self.run_mode not in {"official_candidate", "official"}:
+            raise CloudManifestError("provider binding is only valid for production plans")
+        binding = validate_production_provider_binding(
+            load_bound_json(self.file_binding("provider_binding_ref"), run_root=run_root)
+        )
+        if binding["provider"] != "aws" or binding["region"] != "us-east-1":
+            raise CloudManifestError("production provider binding is not the approved AWS region")
+        return cast(Mapping[str, object], binding)
+
     def verify_official_execution_surface(self, *, run_root: Path) -> Mapping[str, object]:
         """Verify that the external role-image E2E receipt matches this run."""
 
@@ -218,6 +231,9 @@ class ProductionRunSpec:
             raise CloudManifestError(
                 "production execution surface is not bound to this code or input lock"
             )
+        surface_provider_digest = surface.get("provider_binding_sha256")
+        if surface_provider_digest is not None and surface_provider_digest != self.file_binding("provider_binding_ref").sha256:
+            raise CloudManifestError("production execution surface provider binding differs")
         surface_images = {
             cast(str, role["role"]): cast(str, role["image_digest"])
             for role in cast(list[Mapping[str, object]], surface["roles"])
@@ -258,6 +274,7 @@ class ProductionRunSpec:
                 "official authorization is not bound to this run specification, inputs, or budget"
             )
         self.verify_official_execution_surface(run_root=run_root)
+        self.verify_provider_binding(run_root=run_root)
         ledger_binding = FileBinding.from_value(
             authorization["ledger_ref"], field="official_authorization.ledger_ref"
         )
@@ -270,8 +287,8 @@ class ProductionRunSpec:
         """Apply invariants that JSON Schema cannot express without stale duplication."""
 
         value = self.value
-        if value.get("run_mode") not in {"official", "local_mock"}:
-            raise CloudManifestError("run_mode must be official or local_mock")
+        if value.get("run_mode") not in {"official_candidate", "official", "local_mock"}:
+            raise CloudManifestError("run_mode must be official_candidate, official, or local_mock")
         _require_nonempty(value.get("action_id"), field="action_id")
         _require_nonempty(value.get("study_id"), field="study_id")
         _require_commit(value.get("code_commit"), field="code_commit")
@@ -320,6 +337,9 @@ class ProductionRunSpec:
                 value.get("official_key_registry_ref"),
                 field="official_key_registry_ref",
             )
+        elif self.run_mode == "official_candidate":
+            if authorization is not None or value.get("official_key_registry_ref") is not None:
+                raise CloudManifestError("official_candidate run specifications cannot carry official authorization")
         elif authorization is not None:
             raise CloudManifestError("local_mock run specifications cannot carry official authorization")
         elif value.get("official_key_registry_ref") is not None:
@@ -346,17 +366,32 @@ class ProductionRunSpec:
         rng = cast(Mapping[str, object], value.get("rng"))
         if rng.get("contract_id") != "official-study-rng-v1":
             raise CloudManifestError("production spec RNG contract is not registered")
+        early_adapter = cast(Mapping[str, object], value.get("benchmark_adapter"))
+        early_entrypoint = early_adapter.get("entrypoint")
+        if self.run_mode in {"official_candidate", "official"} and isinstance(early_entrypoint, list) and any("mock" in str(arg).lower() or "fixture" in str(arg).lower() for arg in early_entrypoint):
+            raise CloudManifestError("official production specs cannot use mock or fixture adapters")
         seeds = rng.get("seeds")
-        if not isinstance(seeds, Mapping) or not seeds:
-            raise CloudManifestError("production spec must bind named seed digests")
+        if not isinstance(seeds, Mapping):
+            raise CloudManifestError("production spec RNG seeds must be an object")
         for key, seed in seeds.items():
             _require_digest(seed, field=f"rng.seeds.{key}")
+        if self.run_mode == "official_candidate":
+            if rng.get("root_u64") is not None:
+                raise CloudManifestError("official_candidate RNG root must remain unrevealed")
+            if rng.get("status") != "pending_commitments":
+                raise CloudManifestError("official_candidate RNG must remain pending external commitments")
+            if seeds:
+                raise CloudManifestError("official_candidate RNG cannot invent sealed seed digests")
+            self.file_binding_from_mapping(rng.get("commitment_ref"), field="rng.commitment_ref")
+        elif self.run_mode == "official":
+            if type(rng.get("root_u64")) is not int or rng.get("status") != "sealed" or not seeds:
+                raise CloudManifestError("official RNG must carry sealed named seed digests")
 
         model_server = cast(Mapping[str, object], value.get("model_server"))
         launch = model_server.get("launch_argv")
         if not isinstance(launch, list) or not launch:
             raise CloudManifestError("model-server launch_argv must be explicit")
-        if self.run_mode == "official":
+        if self.run_mode in {"official_candidate", "official"}:
             launch_text = "\x00".join(cast(str, arg) for arg in launch)
             if OFFICIAL_MODEL_REPOSITORY not in launch_text or OFFICIAL_MODEL_REVISION not in launch_text:
                 raise CloudManifestError("official model-server command is not bound to the pinned model revision")
@@ -367,8 +402,31 @@ class ProductionRunSpec:
         entrypoint = adapter.get("entrypoint")
         if not isinstance(entrypoint, list) or not entrypoint:
             raise CloudManifestError("benchmark adapter entrypoint must be explicit")
-        if self.run_mode == "official" and any("mock" in str(arg).lower() or "fixture" in str(arg).lower() for arg in entrypoint):
+        if self.run_mode in {"official_candidate", "official"} and any("mock" in str(arg).lower() or "fixture" in str(arg).lower() for arg in entrypoint):
             raise CloudManifestError("official production specs cannot use mock or fixture adapters")
+        if self.run_mode in {"official_candidate", "official"}:
+            self.file_binding("provider_binding_ref")
+            self.file_binding_from_mapping(adapter.get("adapter_manifest_ref"), field="benchmark_adapter.adapter_manifest_ref")
+
+        if self.run_mode in {"official_candidate", "official"}:
+            sampling_by_benchmark = model.get("sampling_by_benchmark")
+            if not isinstance(sampling_by_benchmark, Mapping) or set(sampling_by_benchmark) != {"swe_multilang", "tau2"}:
+                raise CloudManifestError("production specs must bind benchmark-specific sampling")
+            expected_sampling = {
+                "swe_multilang": (0.6, 0.95, 20, 0.0, 1.0),
+                "tau2": (1.0, 0.95, 20, 1.5, 1.0),
+            }
+            for benchmark_id, expected in expected_sampling.items():
+                sampling = sampling_by_benchmark[benchmark_id]
+                if not isinstance(sampling, Mapping):
+                    raise CloudManifestError(f"sampling_by_benchmark.{benchmark_id} must be an object")
+                observed = tuple(sampling.get(field) for field in ("temperature", "top_p", "top_k", "presence_penalty", "repetition_penalty"))
+                if observed != expected or sampling.get("thinking_mode") is not True:
+                    raise CloudManifestError(f"sampling_by_benchmark.{benchmark_id} differs from the registered design")
+
+    @staticmethod
+    def file_binding_from_mapping(value: object, *, field: str) -> FileBinding:
+        return FileBinding.from_value(value, field=field)
 
     @staticmethod
     def _validate_benchmark(value: Mapping[str, object], *, index: int) -> None:

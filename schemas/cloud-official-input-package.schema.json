@@ -1,0 +1,41 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-official-input-package.schema.json",
+    "title": "Official Study Input Package",
+    "description": "One pre-launch package tying the real input lock, candidate roster, pending assignment/RNG, analysis graph, provider binding, and candidate run spec together.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "study_id", "status", "authorizing", "input_lock_ref", "task_manifest_ref", "roster_ref", "assignment_ref", "rng_ref", "analysis_graph_ref", "provider_binding_ref", "benchmark_adapter_ref", "run_spec_candidate_ref"],
+    "properties": {
+        "record_kind": {"const": "cloud_official_input_package"},
+        "schema_version": {"const": "0.1.0"},
+        "study_id": {"const": "neurips-2026-resampling-null"},
+        "status": {"const": "pre_launch_candidate"},
+        "authorizing": {"const": false},
+        "input_lock_ref": {"$ref": "#/$defs/file_ref"},
+        "task_manifest_ref": {"$ref": "#/$defs/file_ref"},
+        "roster_ref": {"$ref": "#/$defs/file_ref"},
+        "assignment_ref": {"$ref": "#/$defs/file_ref"},
+        "rng_ref": {"$ref": "#/$defs/file_ref"},
+        "analysis_graph_ref": {"$ref": "#/$defs/file_ref"},
+        "provider_binding_ref": {"$ref": "#/$defs/file_ref"},
+        "benchmark_adapter_ref": {"$ref": "#/$defs/file_ref"},
+        "run_spec_candidate_ref": {"$ref": "#/$defs/file_ref"}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "file_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": {"type": "string", "minLength": 1},
+                "relative_path": {"type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "byte_count": {"type": "integer", "minimum": 1},
+                "media_type": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        }
+    }
+}

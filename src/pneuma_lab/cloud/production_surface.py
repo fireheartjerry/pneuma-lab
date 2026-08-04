@@ -27,16 +27,20 @@ def require_production_execution_surface(record: Mapping[str, Any]) -> dict[str,
         if entrypoint[:3] != ["python3", "-m", _RUNTIME_MODULE] or entrypoint[3:] != [role["role"]]:
             raise CloudManifestError("production role must use the sealed role runtime entrypoint")
         gates = role["gates"]
-        if role["role"] == "controller":
+        hardened_surface = surface.get("e2e_class") == "non_scientific_bounded_surface"
+        if hardened_surface:
+            if not gates["docker_socket_absent"] or not gates["no_controller_credentials"]:
+                raise CloudManifestError("provider-backed role surface must expose neither Docker nor credentials")
+        elif role["role"] == "controller":
             if gates["docker_socket_absent"]:
-                raise CloudManifestError("controller must honestly record its Docker socket")
-        elif not gates["docker_socket_absent"]:
-            raise CloudManifestError("unprivileged role exposes the Docker socket")
-        if role["role"] == "controller":
+                raise CloudManifestError("legacy qualification controller must honestly record its Docker socket")
             if gates["no_controller_credentials"]:
-                raise CloudManifestError("controller must honestly record controller credentials")
-        elif not gates["no_controller_credentials"]:
-            raise CloudManifestError("unprivileged role exposes controller credentials")
+                raise CloudManifestError("legacy qualification controller must honestly record controller credentials")
+        else:
+            if not gates["docker_socket_absent"]:
+                raise CloudManifestError("unprivileged role exposes the Docker socket")
+            if not gates["no_controller_credentials"]:
+                raise CloudManifestError("unprivileged role exposes controller credentials")
         if not all(gates.values() if role["role"] != "controller" else (
             gates["clean_start"], gates["expected_terminal_state"],
             gates["failure_receipt"], gates["no_class_a_secret"], gates["imds_blocked"],

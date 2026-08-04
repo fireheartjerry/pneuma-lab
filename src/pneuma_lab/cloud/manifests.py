@@ -47,6 +47,15 @@ _SCHEMA_BY_KIND = {
     "cloud_production_worker_evidence": "cloud-production-worker-evidence.schema.json",
     "cloud_production_raw_worker_output": "cloud-production-raw-worker-output.schema.json",
     "cloud_production_controller_state": "cloud-production-controller-state.schema.json",
+    "cloud_production_provider_binding": "cloud-production-provider-binding.schema.json",
+    "cloud_production_image_receipt": "cloud-production-image-receipt.schema.json",
+    "cloud_production_surface_e2e_receipt": "cloud-production-surface-e2e-receipt.schema.json",
+    "cloud_registered_benchmark_adapter_manifest": "cloud-registered-benchmark-adapter-manifest.schema.json",
+    "cloud_official_roster_candidate": "cloud-official-roster-candidate.schema.json",
+    "cloud_official_assignment_pending": "cloud-official-assignment-pending.schema.json",
+    "cloud_official_rng_commitment": "cloud-official-rng-commitment.schema.json",
+    "cloud_official_analysis_graph": "cloud-official-analysis-graph.schema.json",
+    "cloud_official_input_package": "cloud-official-input-package.schema.json",
     "cloud_official_study_authorization": "cloud-official-study-authorization.schema.json",
     "cloud_lease_contention_qualification_receipt": "cloud-lease-contention-qualification-receipt.schema.json",
     "cloud_lease_contention_cleanup_receipt": "cloud-lease-contention-cleanup-receipt.schema.json",
@@ -162,6 +171,44 @@ def validate_production_controller_state(record: Mapping[str, Any]) -> dict[str,
     """Validate durable production state without treating it as execution proof."""
 
     return _validate(record, expected_kind="cloud_production_controller_state")
+
+
+def validate_production_provider_binding(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the concrete provider binding without authorizing a launch."""
+
+    return _validate(record, expected_kind="cloud_production_provider_binding")
+
+
+def validate_production_image_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_production_image_receipt")
+
+
+def validate_production_surface_e2e_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_production_surface_e2e_receipt")
+
+
+def validate_registered_benchmark_adapter_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_registered_benchmark_adapter_manifest")
+
+
+def validate_official_roster_candidate(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_official_roster_candidate")
+
+
+def validate_official_assignment_pending(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_official_assignment_pending")
+
+
+def validate_official_rng_commitment(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_official_rng_commitment")
+
+
+def validate_official_analysis_graph(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_official_analysis_graph")
+
+
+def validate_official_input_package(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_official_input_package")
 
 
 def validate_official_study_authorization(record: Mapping[str, Any]) -> dict[str, Any]:

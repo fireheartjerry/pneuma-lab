@@ -198,6 +198,8 @@ def _production(
         return _failure(role, "production_run_spec_required")
     try:
         spec = ProductionRunSpec.load(spec_path, expected_sha256=spec_sha256)
+        if spec.run_mode == "official_candidate":
+            return _failure(role, "prelaunch_candidate_not_executable")
         if spec.run_mode == "official":
             # A real official job must carry its own cryptographically verified
             # authority.  Merely selecting ``--protocol production`` cannot
@@ -235,7 +237,7 @@ def _production(
                         "task_count": len(rows),
                         "allocation": allocation,
                         "execution_class": (
-                            "official_candidate"
+                            "official"
                             if spec.run_mode == "official"
                             else "local_mock_non_scientific"
                         ),

@@ -24,6 +24,7 @@ COPY schemas/cloud-production-execution-surface.schema.json /opt/schemas/cloud-p
 COPY schemas/cloud-production-raw-worker-output.schema.json /opt/schemas/cloud-production-raw-worker-output.schema.json
 COPY schemas/cloud-production-run-spec.schema.json /opt/schemas/cloud-production-run-spec.schema.json
 COPY schemas/cloud-production-worker-evidence.schema.json /opt/schemas/cloud-production-worker-evidence.schema.json
+COPY schemas/cloud-production-provider-binding.schema.json /opt/schemas/cloud-production-provider-binding.schema.json
 # Fail the image build rather than discovering a missing verifier dependency
 # only after the separately authorized production launch.
 RUN python3 -c "import cryptography, jsonschema"
