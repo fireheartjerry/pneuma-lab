@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import time
 from typing import Any, Mapping, cast
 
@@ -26,6 +27,9 @@ from pneuma_lab.cloud.production_controller import ProductionOrchestrator, Produ
 from pneuma_lab.cloud.production_run import canonical_bytes
 from pneuma_lab.cloud.production_surface import require_production_execution_surface
 from scripts.research.run_production_surface_e2e import ROLES, build_surface_record
+
+
+_ACTION_ID_RE = re.compile(r"^official-surface-e2e-[0-9]{8}$")
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -61,6 +65,13 @@ def _action_evidence_root(package: Path, action_id: str) -> Path:
     return package / "evidence/production-surface-e2e" / action_id
 
 
+def _validate_action_id(action_id: str) -> None:
+    if not _ACTION_ID_RE.fullmatch(action_id):
+        raise CloudManifestError(
+            "action_id must match the canonical official-surface-e2e-YYYYMMDD form"
+        )
+
+
 class _FailOnceObservation:
     def __init__(self, provider: AwsSurfaceProvider) -> None:
         self.provider = provider
@@ -83,6 +94,22 @@ def _image_receipts(package: Path, images_path: Path) -> tuple[dict[str, Any], .
     return receipts
 
 
+def _immutable_image_receipt_refs(
+    package: Path, image_receipts: tuple[dict[str, Any], ...]
+) -> list[dict[str, object]]:
+    """Reference build receipts without changing their immutable bytes."""
+
+    refs: list[dict[str, object]] = []
+    for receipt in image_receipts:
+        receipt_path = package / "evidence/images" / f"{receipt['role']}.receipt.json"
+        if _sha(receipt_path) != _sha_bytes(canonical_bytes(receipt)):
+            raise CloudManifestError(
+                f"immutable image receipt does not match images.json: {receipt['role']}"
+            )
+        refs.append(_ref(package, receipt_path, role=f"{receipt['role']}_image"))
+    return refs
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package-dir", type=Path, required=True)
@@ -91,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--action-id", required=True)
     parser.add_argument("--max-observations", type=int, default=180)
     args = parser.parse_args(argv)
+    _validate_action_id(args.action_id)
     package = args.package_dir.resolve()
     e2e_root = _action_evidence_root(package, args.action_id)
     provider_binding_path = package / "inputs/provider-binding.json"
@@ -212,11 +240,11 @@ def main(argv: list[str] | None = None) -> int:
         surface_path = e2e_root / "surface.json"
         surface_sha256 = _write(surface_path, surface)
         require_production_execution_surface(surface)
-        for receipt in image_receipts:
-            receipt["surface_e2e_status"] = "complete"
-            validate_production_image_receipt(receipt)
-            _write(package / "evidence/images" / f"{receipt['role']}.receipt.json", receipt)
-        _write(args.images.resolve(), {"record_kind": "cloud_production_image_set", "schema_version": "0.1.0", "evidence_class": "production_surface_non_scientific", "source_commit": args.source_commit, "roles": list(image_receipts)})
+        # Image receipts are immutable build evidence. The bounded surface
+        # result is recorded by the separate E2E receipt below; rewriting a
+        # build receipt after the image was built would destroy its contract
+        # and make the image-set digest depend on a later deployment action.
+        image_receipt_refs = _immutable_image_receipt_refs(package, image_receipts)
         e2e_receipt = {
             "record_kind": "cloud_production_surface_e2e_receipt",
             "schema_version": "0.1.0",
@@ -225,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             "provider": "aws",
             "region": "us-east-1",
             "provider_binding_sha256": config.provider_binding_sha256,
-            "image_receipt_refs": [_ref(package, package / "evidence/images" / f"{role}.receipt.json", role=f"{role}_image") for role in ROLES],
+            "image_receipt_refs": image_receipt_refs,
             "surface_sha256": surface_sha256,
             "controller": {"submitted_once": True, "restart_reconciled": True, "observation_error_preserved_submission": True, "terminal_observed": True, "explicit_teardown_phase": True},
             "admission": {"instance_type": "m7i.large", "capacity_type": "on-demand", "max_duration_seconds": 900, "max_attempts": 1, "model_download": False, "benchmark_execution": False, "official_study": False, "canonical_p0_grid": False, "roster_ceremony": False, "unblind": False, "analysis": False},
