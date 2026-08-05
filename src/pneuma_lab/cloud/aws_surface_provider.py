@@ -49,6 +49,7 @@ _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _ID_RE = re.compile(r"^i-[0-9a-f]+$")
 INSTANCE_READBACK_TIMEOUT_SECONDS = 60
 INSTANCE_READBACK_RETRY_SECONDS = 2
+VPC_ENDPOINT_TERMINATION_TIMEOUT_SECONDS = 300
 INSTANCE_TERMINATION_CONFIRM_TIMEOUT_SECONDS = 180
 INSTANCE_TERMINATION_CONFIRM_RETRY_SECONDS = 3
 
@@ -751,7 +752,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if self.watchdog.poll() is not None:
             raise CloudManifestError("external fixture watchdog exited before instance launch")
 
-    def _read_instance(self, instance_id: str) -> Mapping[str, object]:
+    def _read_instance(self, instance_id: str, *, require_root_mapping: bool = False) -> Mapping[str, object]:
         deadline = time.time() + INSTANCE_READBACK_TIMEOUT_SECONDS
         while True:
             try:
@@ -767,10 +768,20 @@ class AwsSurfaceProvider(ProductionJobProvider):
             instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
             if len(instances) != 1:
                 raise CloudManifestError("effective launch readback did not return exactly one instance")
-            return cast(Mapping[str, object], instances[0])
+            instance = cast(Mapping[str, object], instances[0])
+            if require_root_mapping:
+                mappings = instance.get("BlockDeviceMappings", [])
+                root = next((item for item in mappings if isinstance(item, Mapping) and item.get("DeviceName") == AMI_ROOT_DEVICE), None) if isinstance(mappings, Sequence) else None
+                ebs = root.get("Ebs") if isinstance(root, Mapping) else None
+                if not isinstance(ebs, Mapping) or not isinstance(ebs.get("VolumeId"), str) or not ebs.get("VolumeId"):
+                    if time.time() >= deadline:
+                        raise CloudManifestError("effective root EBS mapping did not become available")
+                    time.sleep(INSTANCE_READBACK_RETRY_SECONDS)
+                    continue
+            return instance
 
     def _verify_effective_launch(self, instance_id: str) -> None:
-        instance = self._read_instance(instance_id)
+        instance = self._read_instance(instance_id, require_root_mapping=True)
         if instance.get("ImageId") != self.config.ami_id or instance.get("InstanceType") != INSTANCE_TYPE or instance.get("Architecture") != AMI_ARCHITECTURE or instance.get("Placement", {}).get("AvailabilityZone") != self.config.availability_zone or instance.get("ClientToken") is None or instance.get("InstanceLifecycle") not in {None, "normal"}:
             raise CloudManifestError("effective AMI/type/AZ/architecture/client-token binding differs")
         if instance.get("SubnetId") != self.subnet_id or instance.get("VpcId") != self.config.vpc_id or instance.get("PrivateDnsNameOptions", {}).get("HostnameType") not in {None, "ip-name"}:
@@ -1070,8 +1081,17 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.endpoint_network_interface_ids = list(dict.fromkeys(self.endpoint_network_interface_ids))
         if ids:
             self._call("delete_vpc_endpoints", self.ec2.delete_vpc_endpoints, VpcEndpointIds=ids)
-            self._wait_absent("VPC endpoints", lambda: self._all_tagged("endpoints"))
-            self._wait_absent("VPC endpoint network interfaces", self._network_interfaces_present, timeout=180)
+            cleanup_error: Exception | None = None
+            try:
+                self._wait_absent("VPC endpoints", lambda: self._all_tagged("endpoints"), timeout=VPC_ENDPOINT_TERMINATION_TIMEOUT_SECONDS)
+            except Exception as exc:
+                cleanup_error = exc
+            try:
+                self._wait_absent("VPC endpoint network interfaces", self._network_interfaces_present, timeout=180)
+            except Exception as exc:
+                cleanup_error = cleanup_error or exc
+            if cleanup_error is not None:
+                raise cleanup_error
 
     def _revoke_security_group_pair(self) -> None:
         if not self.endpoint_security_group_id or not self.instance_security_group_id:
@@ -1178,39 +1198,53 @@ class AwsSurfaceProvider(ProductionJobProvider):
             self._wait_absent("instance network interfaces", self._instance_network_interfaces_present, timeout=180)
         except Exception as exc:
             cleanup_error = cleanup_error or exc
-        try:
-            self._delete_action_endpoints()
-            self._revoke_endpoint_service_egress()
-            self._revoke_security_group_pair()
-            for operation, group_id in (
-                ("delete_instance_security_group", self.instance_security_group_id),
-                ("delete_endpoint_security_group", self.endpoint_security_group_id),
-            ):
-                if group_id:
-                    try:
-                        self._delete_security_group(operation, group_id)
-                    except Exception as exc:
-                        cleanup_error = cleanup_error or exc
-            if self.route_association_id:
-                try:
-                    self._call("disassociate_route_table", self.ec2.disassociate_route_table, AssociationId=self.route_association_id)
-                except Exception as exc:
-                    if not _absent(exc, "InvalidRouteTableID.NotFound", "InvalidAssociationID.NotFound"):
-                        raise
-            if self.route_table_id:
-                self._call("delete_route_table", self.ec2.delete_route_table, RouteTableId=self.route_table_id)
-            if self.subnet_id:
-                self._call("delete_subnet", self.ec2.delete_subnet, SubnetId=self.subnet_id)
+        def cleanup_step(step: Callable[[], None]) -> None:
+            nonlocal cleanup_error
+            try:
+                step()
+            except Exception as exc:
+                cleanup_error = cleanup_error or exc
+
+        cleanup_step(self._delete_action_endpoints)
+        cleanup_step(self._revoke_endpoint_service_egress)
+        cleanup_step(self._revoke_security_group_pair)
+        for operation, group_id in (
+            ("delete_instance_security_group", self.instance_security_group_id),
+            ("delete_endpoint_security_group", self.endpoint_security_group_id),
+        ):
+            if group_id:
+                cleanup_step(lambda operation=operation, group_id=group_id: self._delete_security_group(operation, group_id))
+
+        def disassociate_route_table() -> None:
+            if not self.route_association_id:
+                return
+            try:
+                self._call("disassociate_route_table", self.ec2.disassociate_route_table, AssociationId=self.route_association_id)
+            except Exception as exc:
+                if not _absent(exc, "InvalidRouteTableID.NotFound", "InvalidAssociationID.NotFound"):
+                    raise
+
+        cleanup_step(disassociate_route_table)
+        if self.route_table_id:
+            cleanup_step(lambda: self._call("delete_route_table", self.ec2.delete_route_table, RouteTableId=self.route_table_id))
+        if self.subnet_id:
+            cleanup_step(lambda: self._call("delete_subnet", self.ec2.delete_subnet, SubnetId=self.subnet_id))
+
+        def delete_ssm_document() -> None:
             try:
                 self._call("delete_ssm_document", self.ssm.delete_document, Name=self.document_name)
             except Exception as exc:
                 if not _absent(exc, "InvalidDocument", "ResourceNotFoundException"):
                     raise
-            self._delete_iam()
-            self._wait_absent("active action instances", lambda: [item for item in self._all_tagged("instances") if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}], timeout=60)
+
+        cleanup_step(delete_ssm_document)
+        cleanup_step(self._delete_iam)
+        cleanup_step(lambda: self._wait_absent("active action instances", lambda: [item for item in self._all_tagged("instances") if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}], timeout=60))
+        try:
+            fresh = self.fresh_absence()
         except Exception as exc:
             cleanup_error = cleanup_error or exc
-        fresh = self.fresh_absence()
+            fresh = False
         receipt: dict[str, object] = {
             "record_kind": "cloud_production_surface_teardown",
             "schema_version": "0.2.0",

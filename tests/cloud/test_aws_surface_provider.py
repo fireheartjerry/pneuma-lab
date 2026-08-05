@@ -358,6 +358,35 @@ def test_effective_instance_readback_retries_only_ec2_not_found(monkeypatch) -> 
     ]
 
 
+def test_effective_instance_readback_waits_for_root_ebs_mapping(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def describe_instances(self, **kwargs):
+            assert kwargs == {"InstanceIds": ["i-0123456789abcdef0"]}
+            self.calls += 1
+            instance = {"InstanceId": "i-0123456789abcdef0", "BlockDeviceMappings": []}
+            if self.calls == 2:
+                instance["BlockDeviceMappings"] = [
+                    {"DeviceName": "/dev/xvda", "Ebs": {"VolumeId": "vol-0123456789abcdef0"}}
+                ]
+            return {"Reservations": [{"Instances": [instance]}]}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
+
+    instance = provider._read_instance("i-0123456789abcdef0", require_root_mapping=True)
+
+    assert instance["BlockDeviceMappings"][0]["Ebs"]["VolumeId"] == "vol-0123456789abcdef0"
+    assert provider.ec2.calls == 2
+
+
 def test_waiter_race_requires_explicit_terminal_confirmation() -> None:
     from types import SimpleNamespace
 

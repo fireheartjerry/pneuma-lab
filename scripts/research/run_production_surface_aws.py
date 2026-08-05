@@ -177,10 +177,13 @@ def main(argv: list[str] | None = None) -> int:
     allocation = {"worker-0": ("surface-controller",), "worker-1": ("surface-worker",)}
     orchestrator = ProductionOrchestrator(state, action_id=args.action_id, run_spec_sha256=run_binding_digest, allocation=allocation)
     teardown_record: Mapping[str, Any] | None = None
+    cleanup_provider = provider
+    primary_error: Exception | None = None
     try:
         submitted = orchestrator.submit(provider)
         parent_id = submitted.parent_job_id
         restarted_provider = AwsSurfaceProvider(config)
+        cleanup_provider = restarted_provider
         restarted = ProductionOrchestrator(ProductionStateStore(state_path, action_id=args.action_id, run_spec_sha256=run_binding_digest, binding={**binding, "run_spec_sha256": run_binding_digest}), action_id=args.action_id, run_spec_sha256=run_binding_digest, allocation=allocation)
         if restarted.submit(restarted_provider).parent_job_id != parent_id:
             raise CloudManifestError("provider restart did not reconcile the original submission")
@@ -258,10 +261,50 @@ def main(argv: list[str] | None = None) -> int:
         _write_once(e2e_root / "status.json", {"status": "COMPLETE", "evidence_class": "production_surface_non_scientific", "fixture_mode": "FIXTURE-NONSCI", "authority": "none", "surface_sha256": surface_sha256, "teardown_sha256": teardown_sha256, "projected_max_usd": preflight["cost"]["projected_max_usd"], "actual_billing": {"status": "delayed_not_available", "usd": None}, "parent_job_id": parent_id, "scientific_workload": False})
         print(json.dumps({"status": "COMPLETE", "action_id": args.action_id, "surface_sha256": surface_sha256, "projected_max_usd": preflight["cost"]["projected_max_usd"], "actual_billing": "delayed_not_available", "parent_job_id": parent_id}, sort_keys=True))
         return 0
+    except Exception as exc:
+        primary_error = exc
+        raise
     finally:
         if teardown_record is None:
-            provider.close_attempt()
-            provider.teardown(provider.submission)
+            cleanup_provider.close_attempt()
+            try:
+                cleanup_provider.teardown(cleanup_provider.submission)
+            except Exception as cleanup_error:
+                failure = {
+                    "record_kind": "cloud_production_surface_e2e_failure",
+                    "schema_version": "0.1.0",
+                    "evidence_class": "production_surface_non_scientific",
+                    "fixture_mode": "FIXTURE-NONSCI",
+                    "authority": "none",
+                    "action_id": args.action_id,
+                    "scientific_workload": False,
+                    "primary_error": {"type": type(primary_error).__name__ if primary_error else None, "message": str(primary_error) if primary_error else None},
+                    "cleanup_error": {"type": type(cleanup_error).__name__, "message": str(cleanup_error)},
+                    "teardown": cleanup_provider.last_teardown,
+                    "preserved_failed_attempt": True,
+                }
+                _write_once(e2e_root / "failure.json", failure)
+                if primary_error is not None:
+                    raise primary_error from cleanup_error
+                raise
+            else:
+                teardown_record = cleanup_provider.last_teardown
+                _write_once(
+                    e2e_root / "failure.json",
+                    {
+                        "record_kind": "cloud_production_surface_e2e_failure",
+                        "schema_version": "0.1.0",
+                        "evidence_class": "production_surface_non_scientific",
+                        "fixture_mode": "FIXTURE-NONSCI",
+                        "authority": "none",
+                        "action_id": args.action_id,
+                        "scientific_workload": False,
+                        "primary_error": {"type": type(primary_error).__name__ if primary_error else None, "message": str(primary_error) if primary_error else None},
+                        "cleanup_error": None,
+                        "teardown": teardown_record,
+                        "preserved_failed_attempt": True,
+                    },
+                )
 
 
 if __name__ == "__main__":
