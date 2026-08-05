@@ -246,6 +246,33 @@ def test_iam_profile_binding_retains_verified_arn_for_ec2_launch() -> None:
     assert provider.profile_arn == profile_arn
 
 
+def test_run_admission_retries_only_iam_propagation_and_never_submits(monkeypatch) -> None:
+    class _ClientError(Exception):
+        def __init__(self, code: str, message: str) -> None:
+            self.response = {"Error": {"Code": code, "Message": message}}
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        def run_instances(self, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                raise _ClientError("InvalidParameterValue", "iamInstanceProfile is not propagated")
+            raise _ClientError("DryRunOperation", "Request would have succeeded, but DryRun flag is set")
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = type("Config", (), {"evidence_dir": None})()
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
+
+    provider._probe_run_admission({"MinCount": 1, "MaxCount": 1})
+
+    assert len(provider.ec2.calls) == 2
+    assert all(call["DryRun"] is True for call in provider.ec2.calls)
+
+
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     class _Exceptions:
         class InvalidInstanceId(Exception):

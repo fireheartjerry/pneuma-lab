@@ -706,6 +706,23 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.instance_network_interface_ids = [cast(str, item["NetworkInterfaceId"]) for item in interfaces if item.get("NetworkInterfaceId")]
         self._call("describe_image.effective", self.ec2.describe_images, ImageIds=[self.config.ami_id])
 
+    def _probe_run_admission(self, run_kwargs: Mapping[str, object]) -> None:
+        deadline = time.time() + 60
+        while True:
+            try:
+                self._call("run_instances.dry_run", self.ec2.run_instances, DryRun=True, **dict(run_kwargs))
+            except Exception as exc:
+                error = getattr(exc, "response", {}).get("Error", {})
+                code = error.get("Code") if isinstance(error, Mapping) else None
+                message = error.get("Message", "") if isinstance(error, Mapping) else ""
+                if code == "DryRunOperation":
+                    return
+                if code == "InvalidParameterValue" and "iamInstanceProfile" in str(message) and time.time() < deadline:
+                    time.sleep(5)
+                    continue
+                raise CloudManifestError("fixture RunInstances dry-run admission failed") from exc
+            raise CloudManifestError("fixture RunInstances dry-run unexpectedly succeeded")
+
     def _hydrate(self, instance_id: str) -> None:
         self.instance_id = instance_id
         tagged_subnets = self._all_tagged("subnets")
@@ -775,6 +792,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             "UserData": user_data,
             "TagSpecifications": [{"ResourceType": resource_type, "Tags": tags} for resource_type in ("instance", "volume", "network-interface")],
         }
+        self._probe_run_admission(run_kwargs)
         # Exactly one RunInstances call. Eventual consistency is handled before
         # this point, never by replaying a potentially successful submission.
         response = self._call("run_instances.once", self.ec2.run_instances, **run_kwargs)
