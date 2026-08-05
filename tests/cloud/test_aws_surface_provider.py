@@ -105,6 +105,41 @@ def test_surface_bootstrap_logs_into_ecr_without_persisting_credentials() -> Non
     assert '\n"$ROOT/status.json"\n' not in user_data
 
 
+def test_surface_bootstrap_binds_only_verified_private_endpoint_addresses() -> None:
+    config = aws_surface_provider.AwsSurfaceConfig(
+        action_id="surface-test",
+        region="us-east-1",
+        input_lock_sha256="a" * 64,
+        harness_sha256="b" * 64,
+        harness_bytes_b64="e30=",
+        image_refs={
+            "controller": "123456789012.dkr.ecr.us-east-1.amazonaws.com/controller@sha256:" + "1" * 64,
+            "model-server": "123456789012.dkr.ecr.us-east-1.amazonaws.com/model@sha256:" + "2" * 64,
+            "benchmark-worker": "123456789012.dkr.ecr.us-east-1.amazonaws.com/worker@sha256:" + "3" * 64,
+        },
+        image_digests={role: "sha256:" + str(index) * 64 for index, role in enumerate(("controller", "model-server", "benchmark-worker"), 1)},
+        provider_binding_sha256="c" * 64,
+        source_commit="d" * 40,
+    )
+
+    user_data = aws_surface_provider.render_surface_user_data(
+        config,
+        endpoint_host_bindings={
+            "api.ecr.us-east-1.amazonaws.com": "10.42.2.10",
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com": "10.42.2.11",
+        },
+    )
+
+    assert "10.42.2.10\tapi.ecr.us-east-1.amazonaws.com" in user_data
+    assert "10.42.2.11\t123456789012.dkr.ecr.us-east-1.amazonaws.com" in user_data
+    assert "PrivateDnsEnabled=True" not in user_data
+
+    import pytest
+
+    with pytest.raises(Exception):
+        aws_surface_provider.render_surface_user_data(config, endpoint_host_bindings={"api.ecr.us-east-1.amazonaws.com": "8.8.8.8"})
+
+
 def test_action_id_is_fail_closed_and_immutable() -> None:
     aws_surface_provider.validate_action_id("FIXTURE-NONSCI-20260805-v2-a1b2c3d4")
 

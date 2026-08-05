@@ -14,6 +14,7 @@ import base64
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -140,12 +141,34 @@ def _fixed_ssm_document() -> dict[str, object]:
     }
 
 
-def render_surface_user_data(config: AwsSurfaceConfig) -> str:
+def render_surface_user_data(
+    config: AwsSurfaceConfig,
+    *,
+    endpoint_host_bindings: Mapping[str, str] | None = None,
+) -> str:
     """Render bootstrap that cannot install packages or receive science inputs."""
 
     refs = {role: config.image_refs[role] for role in ("controller", "model-server", "benchmark-worker")}
     encoded_refs = base64.b64encode(_canonical(refs)).decode("ascii")
     registry = next(iter(refs.values())).split("/", 1)[0]
+    host_lines = ""
+    if endpoint_host_bindings is not None:
+        if not endpoint_host_bindings:
+            raise CloudManifestError("action endpoint host bindings cannot be empty")
+        grouped: dict[str, list[str]] = {}
+        for host, address in sorted(endpoint_host_bindings.items()):
+            if not re.fullmatch(r"[A-Za-z0-9.*-]+", host) or host.startswith(".") or host.endswith("."):
+                raise CloudManifestError("action endpoint host binding contains an invalid hostname")
+            try:
+                parsed = ipaddress.ip_address(address)
+            except ValueError as exc:
+                raise CloudManifestError("action endpoint host binding contains an invalid address") from exc
+            if parsed.version != 4 or not parsed.is_private or parsed.is_loopback or parsed.is_link_local:
+                raise CloudManifestError("action endpoint host binding must use a private non-loopback IPv4 address")
+            grouped.setdefault(address, []).append(host)
+        host_lines = "\n# Action-owned endpoint bindings; no public DNS or egress is permitted.\n"
+        host_lines += "\n".join(f"{address}\t{' '.join(hosts)}" for address, hosts in sorted(grouped.items()))
+        host_lines += "\n"
     initial_status = {
         "record_kind": "cloud_production_surface_provider_status",
         "schema_version": "0.2.0",
@@ -170,6 +193,8 @@ export HOME=/root
 ACTION={config.action_id!r}
 ROOT=/var/lib/pneuma-surface
 REGISTRY={registry!r}
+cat >> /etc/hosts <<'HOSTS'
+{host_lines}HOSTS
 mkdir -p "$ROOT/roles"
 chmod 700 "$ROOT"
 echo {config.harness_bytes_b64!r} | base64 -d > "$ROOT/harness.json"
@@ -300,6 +325,8 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.instance_security_group_id: str | None = None
         self.endpoint_security_group_id: str | None = None
         self.endpoint_ids: dict[str, str] = {}
+        self.endpoint_network_interface_ids: list[str] = []
+        self.endpoint_host_bindings: dict[str, str] = {}
         self.s3_endpoint_id: str | None = None
         self.instance_volume_ids: list[str] = []
         self.instance_network_interface_ids: list[str] = []
@@ -374,7 +401,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if resource_type == "route_tables":
             return list(self._call("describe_route_tables.tagged", self.ec2.describe_route_tables, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}]).get("RouteTables", []))
         if resource_type == "endpoints":
-            return list(self._call("describe_vpc_endpoints.tagged", self.ec2.describe_vpc_endpoints, Filters=[{"Name": "tag-key", "Values": [ACTION_TAG]}, {"Name": "vpc-id", "Values": [self.config.vpc_id]}]).get("VpcEndpoints", []))
+            return list(self._call("describe_vpc_endpoints.tagged", self.ec2.describe_vpc_endpoints, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}, {"Name": "vpc-id", "Values": [self.config.vpc_id]}]).get("VpcEndpoints", []))
         return []
 
     def _active_instance(self) -> str | None:
@@ -443,6 +470,79 @@ class AwsSurfaceProvider(ProductionJobProvider):
             statement = [{"Effect": "Allow", "Principal": "*", "Action": ["ec2messages:AcknowledgeMessage", "ec2messages:DeleteMessage", "ec2messages:FailMessage", "ec2messages:GetEndpoint", "ec2messages:GetMessages", "ec2messages:SendReply"], "Resource": "*"}]
         return {"Version": "2012-10-17", "Statement": statement}
 
+    def _capture_endpoint_bindings(self) -> None:
+        endpoint_ids = list(self.endpoint_ids.values())
+        response = self._call(
+            "describe_action_endpoint_details",
+            self.ec2.describe_vpc_endpoints,
+            VpcEndpointIds=endpoint_ids,
+        )
+        endpoints = response.get("VpcEndpoints", [])
+        if len(endpoints) != len(endpoint_ids) or any(
+            endpoint.get("State") != "available"
+            or endpoint.get("VpcId") != self.config.vpc_id
+            or endpoint.get("PrivateDnsEnabled") is not False
+            for endpoint in endpoints
+        ):
+            raise CloudManifestError("action interface endpoints did not satisfy the private-DNS-disabled binding")
+        network_interface_ids: list[str] = []
+        endpoint_service_interfaces: dict[str, list[str]] = {}
+        for endpoint in endpoints:
+            service_name = str(endpoint.get("ServiceName", ""))
+            service = next((name for name in INTERFACE_SERVICES if service_name.endswith("." + name)), None)
+            interfaces = [value for value in endpoint.get("NetworkInterfaceIds", []) if isinstance(value, str)]
+            groups = {item.get("GroupId") for item in endpoint.get("Groups", []) if isinstance(item, Mapping)}
+            try:
+                policy = json.loads(str(endpoint.get("PolicyDocument", "")))
+            except json.JSONDecodeError as exc:
+                raise CloudManifestError("action interface endpoint policy is not JSON") from exc
+            if (
+                service is None
+                or len(interfaces) != 1
+                or endpoint.get("SubnetIds") != [self.subnet_id]
+                or groups != {self.endpoint_security_group_id}
+                or policy != self._endpoint_policy(service)
+            ):
+                raise CloudManifestError("each action interface endpoint must have exactly one ENI")
+            network_interface_ids.extend(interfaces)
+            endpoint_service_interfaces[service] = interfaces
+        if len(network_interface_ids) != len(endpoint_ids) or set(endpoint_service_interfaces) != set(INTERFACE_SERVICES):
+            raise CloudManifestError("action interface endpoint ENI set is incomplete")
+        interface_response = self._call(
+            "describe_action_endpoint_network_interfaces",
+            self.ec2.describe_network_interfaces,
+            NetworkInterfaceIds=network_interface_ids,
+        )
+        interfaces = interface_response.get("NetworkInterfaces", [])
+        by_id = {item.get("NetworkInterfaceId"): item for item in interfaces}
+        if len(by_id) != len(network_interface_ids):
+            raise CloudManifestError("action endpoint ENI readback is incomplete")
+        ips: dict[str, str] = {}
+        for service, ids in endpoint_service_interfaces.items():
+            item = by_id.get(ids[0])
+            if not isinstance(item, Mapping) or item.get("VpcId") != self.config.vpc_id or item.get("SubnetId") != self.subnet_id:
+                raise CloudManifestError("action endpoint ENI is outside the bound private subnet")
+            address = item.get("PrivateIpAddress")
+            if not isinstance(address, str):
+                raise CloudManifestError("action endpoint ENI has no private IPv4 address")
+            try:
+                parsed = ipaddress.ip_address(address)
+            except ValueError as exc:
+                raise CloudManifestError("action endpoint ENI private address is malformed") from exc
+            if parsed.version != 4 or not parsed.is_private or parsed.is_loopback or parsed.is_link_local or item.get("Association"):
+                raise CloudManifestError("action endpoint ENI has a public, non-IPv4, or associated address")
+            ips[service] = address
+        registry = next(iter(self.config.image_refs.values())).split("/", 1)[0]
+        hosts = {
+            "ecr.api": ("api.ecr.us-east-1.amazonaws.com", "ecr.us-east-1.api.aws"),
+            "ecr.dkr": (registry,),
+            "ssm": ("ssm.us-east-1.amazonaws.com", "ssm.us-east-1.api.aws"),
+            "ssmmessages": ("ssmmessages.us-east-1.amazonaws.com", "ssmmessages.us-east-1.api.aws"),
+            "ec2messages": ("ec2messages.us-east-1.amazonaws.com",),
+        }
+        self.endpoint_network_interface_ids = network_interface_ids
+        self.endpoint_host_bindings = {host: ips[service] for service, names in hosts.items() for host in names}
+
     def _create_network(self) -> None:
         self._verify_vpc()
         subnet = self._call("create_subnet", self.ec2.create_subnet, VpcId=self.config.vpc_id, CidrBlock=self.config.subnet_cidr, AvailabilityZone=self.config.availability_zone)
@@ -458,7 +558,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._resource_tags([self.s3_endpoint_id])
         self._find_or_create_security_groups()
         for service in INTERFACE_SERVICES:
-            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=True, PolicyDocument=_json(self._endpoint_policy(service)))
+            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=False, PolicyDocument=_json(self._endpoint_policy(service)))
             self.endpoint_ids[service] = cast(str, response["VpcEndpoint"]["VpcEndpointId"])
             self._resource_tags([self.endpoint_ids[service]])
         deadline = time.time() + 180
@@ -471,6 +571,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             time.sleep(5)
         else:
             raise CloudManifestError("action interface endpoints did not become available")
+        self._capture_endpoint_bindings()
         route_tables = self._call("verify_action_route_table", self.ec2.describe_route_tables, RouteTableIds=[self.route_table_id])["RouteTables"]
         routes = route_tables[0].get("Routes", [])
         if any(route.get("GatewayId", "").startswith(("igw-", "nat-", "tgw-")) or route.get("NatGatewayId") or route.get("TransitGatewayId") for route in routes):
@@ -586,6 +687,9 @@ class AwsSurfaceProvider(ProductionJobProvider):
                 for name in INTERFACE_SERVICES:
                     if str(endpoint.get("ServiceName", "")).endswith("." + name):
                         self.endpoint_ids[name] = cast(str, endpoint["VpcEndpointId"])
+        if set(self.endpoint_ids) != set(INTERFACE_SERVICES):
+            raise CloudManifestError("restart reconciliation found an incomplete interface endpoint set")
+        self._capture_endpoint_bindings()
         self._verify_effective_launch(instance_id)
 
     def submit(self, *, client_token: str, allocation: Mapping[str, Sequence[str]]) -> ProductionSubmission:
@@ -603,7 +707,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._create_ssm_document()
         deadline = time.time() + MAX_DURATION_SECONDS
         self._start_watchdog(deadline_epoch=deadline)
-        user_data = render_surface_user_data(self.config)
+        user_data = render_surface_user_data(self.config, endpoint_host_bindings=self.endpoint_host_bindings)
         tags = self._tags()
         run_kwargs: dict[str, object] = {
             "ImageId": self.config.ami_id,
@@ -696,10 +800,11 @@ class AwsSurfaceProvider(ProductionJobProvider):
         return cast(Sequence[Mapping[str, object]], response.get("Volumes", []))
 
     def _network_interfaces_present(self) -> Sequence[Mapping[str, object]]:
-        if not self.instance_network_interface_ids:
+        network_interface_ids = self.instance_network_interface_ids + self.endpoint_network_interface_ids
+        if not network_interface_ids:
             return []
         try:
-            response = self._call("describe_action_network_interfaces", self.ec2.describe_network_interfaces, NetworkInterfaceIds=list(self.instance_network_interface_ids))
+            response = self._call("describe_action_network_interfaces", self.ec2.describe_network_interfaces, NetworkInterfaceIds=list(dict.fromkeys(network_interface_ids)))
         except Exception as exc:
             if _absent(exc, "InvalidNetworkInterfaceID.NotFound"):
                 return []
@@ -722,10 +827,56 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.watchdog = None
 
     def _delete_action_endpoints(self) -> None:
-        ids = list(self.endpoint_ids.values()) + ([self.s3_endpoint_id] if self.s3_endpoint_id else [])
+        tagged = self._all_tagged("endpoints")
+        tagged_ids = [value for item in tagged if isinstance((value := item.get("VpcEndpointId")), str)]
+        ids = list(dict.fromkeys(list(self.endpoint_ids.values()) + ([self.s3_endpoint_id] if self.s3_endpoint_id else []) + tagged_ids))
+        for endpoint in tagged:
+            self.endpoint_network_interface_ids.extend(
+                value for value in endpoint.get("NetworkInterfaceIds", []) if isinstance(value, str)
+            )
+        self.endpoint_network_interface_ids = list(dict.fromkeys(self.endpoint_network_interface_ids))
         if ids:
             self._call("delete_vpc_endpoints", self.ec2.delete_vpc_endpoints, VpcEndpointIds=ids)
             self._wait_absent("VPC endpoints", lambda: self._all_tagged("endpoints"))
+            self._wait_absent("VPC endpoint network interfaces", self._network_interfaces_present, timeout=180)
+
+    def _revoke_security_group_pair(self) -> None:
+        if not self.endpoint_security_group_id or not self.instance_security_group_id:
+            return
+        try:
+            self._call(
+                "revoke_endpoint_ingress",
+                self.ec2.revoke_security_group_ingress,
+                GroupId=self.endpoint_security_group_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "UserIdGroupPairs": [{"GroupId": self.instance_security_group_id}],
+                    }
+                ],
+            )
+        except Exception as exc:
+            if not _absent(exc, "InvalidPermission.NotFound"):
+                raise
+        try:
+            self._call(
+                "revoke_instance_endpoint_egress",
+                self.ec2.revoke_security_group_egress,
+                GroupId=self.instance_security_group_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "UserIdGroupPairs": [{"GroupId": self.endpoint_security_group_id}],
+                    }
+                ],
+            )
+        except Exception as exc:
+            if not _absent(exc, "InvalidPermission.NotFound"):
+                raise
 
     def _delete_iam(self) -> None:
         for function, kwargs, operation in (
@@ -761,10 +912,11 @@ class AwsSurfaceProvider(ProductionJobProvider):
             cleanup_error = cleanup_error or exc
         try:
             self._delete_action_endpoints()
-            if self.endpoint_security_group_id:
-                self._call("delete_endpoint_security_group", self.ec2.delete_security_group, GroupId=self.endpoint_security_group_id)
+            self._revoke_security_group_pair()
             if self.instance_security_group_id:
                 self._call("delete_instance_security_group", self.ec2.delete_security_group, GroupId=self.instance_security_group_id)
+            if self.endpoint_security_group_id:
+                self._call("delete_endpoint_security_group", self.ec2.delete_security_group, GroupId=self.endpoint_security_group_id)
             if self.route_association_id:
                 try:
                     self._call("disassociate_route_table", self.ec2.disassociate_route_table, AssociationId=self.route_association_id)
@@ -803,7 +955,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             "instance_profile": self.profile_name,
             "ssm_document": {"name": self.document_name, "version": self.document_version, "sha256": self.document_sha256},
             "watchdog": {"pid": self.watchdog_pid, "source_sha256": self.watchdog_source_sha256, "deadline_epoch": self.external_deadline_epoch},
-            "resource_ids": {"instances": [instance_id] if instance_id else [], "volumes": list(self.instance_volume_ids), "network_interfaces": list(self.instance_network_interface_ids)},
+            "resource_ids": {"instances": [instance_id] if instance_id else [], "volumes": list(self.instance_volume_ids), "network_interfaces": list(dict.fromkeys(self.instance_network_interface_ids + self.endpoint_network_interface_ids))},
             "provider_response_hashes": list(self.provider_responses),
             "fresh_provider_absence": fresh,
             "retained_ecr_images": True,
