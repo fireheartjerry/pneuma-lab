@@ -29,7 +29,7 @@ from .artifacts import (_artifact_ref_for_path, _load_direct_scientific_parent,
                         _prepare_destination, _read_ref, _ref_mapping, _scientific_documents,
                         _validate_power_identities, write_record)
 from .assignment import BytesField, TextField, U64Field, commitment_sha256, kdf_frame
-from .analysis import evaluate_binary_gate_batch
+from .analysis import conservative_multiplier_quantile, evaluate_binary_gate_batch
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
@@ -368,10 +368,41 @@ def _raw_contrast_rows(counts: BenchmarkPatternCounts) -> np.ndarray:
     return result
 
 
+def _contrast_covariance(
+    swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts,
+) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray, np.ndarray]:
+    """Return benchmark matrices, the registered estimate, and ``V_hat``."""
+    matrices = (_raw_contrast_rows(swe), _raw_contrast_rows(tau))
+    if any(matrix.shape[0] < 2 for matrix in matrices):
+        raise RecordValidationError("multiplier inference requires at least two tasks per benchmark")
+    estimate = sum((matrix.mean(axis=0) for matrix in matrices), np.zeros(2)) / len(matrices)
+    covariance = sum(
+        (np.cov(matrix, rowvar=False, ddof=1) / len(matrix) for matrix in matrices),
+        np.zeros((2, 2)),
+    ) / (len(matrices) ** 2)
+    return matrices, estimate, covariance
+
+
+def _gaussian_critical_for_counts(
+    swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts,
+) -> float:
+    """Correlation-adaptive two-dimensional Gaussian max critical value."""
+    _, _, covariance = _contrast_covariance(swe, tau)
+    standard_errors = np.sqrt(np.maximum(0.0, np.diag(covariance)))
+    if np.any(~np.isfinite(standard_errors)) or np.any(standard_errors <= 0.0):
+        return float("inf")
+    correlation = float(covariance[0, 1] / (standard_errors[0] * standard_errors[1]))
+    return gaussian_max_critical(min(1.0, max(-1.0, correlation)), AnalysisConfig().alpha)
+
+
 def full_multiplier_gate_pass(
     swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts, *, authority_kind: str,
     tier_membership_sha256: str, grid_content_digest: str, phase: str, cell_id: str,
     replicate_index: int, multiplier_draws: int,
+    roster_ref: ArtifactRef | None = None,
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None = None,
 ) -> bool:
     """Run the registered 99,999-draw Rademacher max comparison on raw counts.
 
@@ -381,23 +412,31 @@ def full_multiplier_gate_pass(
     """
     if type(multiplier_draws) is not int or multiplier_draws != 99999:
         raise RecordValidationError("full multiplier validation requires exactly 99,999 draws")
-    rows = np.concatenate((_raw_contrast_rows(swe), _raw_contrast_rows(tau)), axis=0)
-    if rows.shape[0] != 40:
-        raise RecordValidationError("full multiplier validation requires two n=20 benchmarks")
-    observed = rows.mean(axis=0)
-    centered = rows - observed
-    scale = np.sqrt(np.mean(centered * centered, axis=0) / rows.shape[0])
-    if np.any(scale <= 0.0):
+    matrices, _, covariance = _contrast_covariance(swe, tau)
+    standard_errors = np.sqrt(np.maximum(0.0, np.diag(covariance)))
+    if np.any(~np.isfinite(standard_errors)) or np.any(standard_errors <= 0.0):
         return False
-    observed_z = observed / scale
     rng = philox_generator(authority_kind, tier_membership_sha256, grid_content_digest,
                            "validation", phase, cell_id, replicate_index,
                            "multiplier_rademacher", 0)
-    # Bounded memory (~32 MB) and all raw-count operations stay in-process.
-    signs = rng.integers(0, 2, size=(multiplier_draws, rows.shape[0]), dtype=np.int8) * 2 - 1
-    draws = (signs @ centered) / rows.shape[0] / scale
-    critical = np.sort(np.max(draws, axis=1))[int(np.ceil((1.0 - 0.05) * multiplier_draws)) - 1]
-    return bool(np.all(observed_z >= critical))
+    total = np.zeros((multiplier_draws, 2), dtype=float)
+    for matrix in matrices:
+        n = len(matrix)
+        centered = matrix - matrix.mean(axis=0)
+        signs = rng.integers(0, 2, size=(multiplier_draws, n), dtype=np.int8) * 2 - 1
+        total += signs @ centered * sqrt(n / (n - 1)) / n
+    maxima = np.max(total / len(matrices) / standard_errors, axis=1)
+    critical, _ = conservative_multiplier_quantile(maxima.tolist(), alpha=AnalysisConfig().alpha)
+    if roster_ref is None:
+        roster_ref = ArtifactRef("roster", "power-validation-roster.json", "0" * 64, 0, "application/json")
+    gate = evaluate_simulated_pattern_batch(
+        swe,
+        tau,
+        roster_ref=roster_ref,
+        critical_value=critical,
+        joint_group_labels=joint_group_labels,
+    )
+    return bool(gate.causal_pass[0])
 
 
 def pattern_count_digest(counts: BenchmarkPatternCounts) -> str:
@@ -1728,7 +1767,8 @@ def _receipt_joint_group_labels(joint_group_labels: tuple[
 def _gate_totals_for_cell(
     cell: PowerCell, *, authority: PowerAuthority, digest: str, phase: str,
     roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
-    draw_domain: Literal["screen", "grid", "validation"] = "grid", critical_value: float = 1.96,
+    draw_domain: Literal["screen", "grid", "validation"] = "grid",
+    critical_value: float | None = None,
     joint_group_labels: tuple[tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...]] | None = None,
 ) -> tuple[dict[str, int], dict[str, object]]:
     """Evaluate bounded real count tensors and retain only aggregate gate totals."""
@@ -1741,13 +1781,18 @@ def _gate_totals_for_cell(
         rows = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
                                     roster_group_sizes=roster_group_sizes, start=start, count=count, draw_domain=draw_domain)
         group_manifest, patterns = _batch_group_manifest_and_patterns(rows, joint_group_labels)
+        critical_values = (
+            np.asarray([_gaussian_critical_for_counts(swe, tau) for swe, tau in rows])
+            if critical_value is None
+            else np.full(count, critical_value)
+        )
         gate = evaluate_binary_gate_batch(
             BinarySufficientStatisticsBatch(
                 roster_ref=authority.roster_ref, group_manifest=group_manifest,
                 pattern_counts=patterns, arm_failure_counts=np.zeros((count, 2, 4), dtype=np.int64),
                 pipeline_invalid_counts=np.zeros(count, dtype=np.int64),
             ),
-            AnalysisConfig(), critical_values=np.full(count, critical_value),
+            AnalysisConfig(), critical_values=critical_values,
         )
         chunk_passes = int(np.count_nonzero(gate.causal_pass))
         causal_count += chunk_passes
@@ -1765,7 +1810,10 @@ def _gate_totals_for_cell(
     receipt: dict[str, object] = {
         "contract_id": "p0-count-replay-merkle-v2", "cell_id": cell.cell_id,
         "authority_kind": authority.authority_kind, "tier_membership_sha256": authority.tier_membership_sha256,
-        "grid_content_sha256": digest, "phase": phase, "draw_domain": draw_domain, "critical_value": critical_value, "dataset_count": dataset_count,
+        "grid_content_sha256": digest, "phase": phase, "draw_domain": draw_domain,
+        "critical_value": (
+            "correlation_adaptive_gaussian_max" if critical_value is None else critical_value
+        ), "dataset_count": dataset_count,
         "group_layout_sha256": layout, "joint_group_labels": receipt_labels,
         "chunk_size": chunk_size, "chunk_count": len(chunks),
         "chunks": chunks, "full_merkle_root_sha256": merkle_root(tuple(leaves)),
@@ -1792,12 +1840,16 @@ def validate_power_execution_receipt(result: Mapping[str, object], *, authority:
     if not isinstance(receipt, Mapping) or receipt.get("cell_id") != cell_id:
         raise RecordValidationError("power shard receipt does not bind its cell")
     domain = cast(Literal["screen", "grid", "validation"], receipt.get("draw_domain", "grid"))
-    critical = receipt.get("critical_value", 1.96)
-    if domain not in {"screen", "grid", "validation"} or type(critical) not in (int, float):
+    critical = receipt.get("critical_value")
+    adaptive = critical == "correlation_adaptive_gaussian_max"
+    if domain not in {"screen", "grid", "validation"} or (
+        not adaptive and type(critical) not in (int, float)
+    ):
         raise RecordValidationError("power shard receipt has invalid draw contract")
     expected_totals, expected = _gate_totals_for_cell(cell, authority=authority, digest=grid_digest,
         phase=cast(str, receipt.get("phase")), roster_group_sizes=roster_group_sizes,
-        dataset_count=cast(int, receipt.get("dataset_count")), draw_domain=domain, critical_value=float(critical),
+        dataset_count=cast(int, receipt.get("dataset_count")), draw_domain=domain,
+        critical_value=None if adaptive else float(cast(float, critical)),
         joint_group_labels=joint_group_labels)
     if expected != dict(receipt) or expected_totals != result.get("gate_totals"):
         raise RecordValidationError("power shard replay receipt or aggregate totals differ from regenerated tensors")
@@ -1914,6 +1966,30 @@ def _tier_decision(*, authority: PowerAuthority, rows: list[Mapping[str, object]
     if not _tier_passes(rows):
         return "FEASIBILITY_NO_GO"
     return f"C{tier}"
+
+
+def _aggregate_tier_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    """Collapse cellwise certificates to the four registered worst-case rows."""
+    expected = ("alternative", "null_both", "null_content", "null_excess")
+    tiers = {row.get("tier") for row in rows}
+    if len(tiers) != 1 or not rows:
+        raise RecordValidationError("power aggregation requires one non-empty tier")
+    tier = next(iter(tiers))
+    aggregated: list[dict[str, object]] = []
+    for family in expected:
+        family_rows = [row for row in rows if row.get("family") == family]
+        if not family_rows:
+            raise RecordValidationError(f"power aggregation lacks {family} cells")
+        lowers = [float(cast(float, row["lower"])) for row in family_rows]
+        uppers = [float(cast(float, row["upper"])) for row in family_rows]
+        aggregated.append({
+            "family": family,
+            "tier": tier,
+            "lower": min(lowers),
+            "upper": max(uppers),
+            "cell_count": len(family_rows),
+        })
+    return aggregated
 
 
 def _tier_passes(rows: Sequence[Mapping[str, object]]) -> bool:
@@ -2158,6 +2234,7 @@ def _validation_family_totals(cell: PowerCell, *, authority: PowerAuthority, dig
             tier_membership_sha256=authority.tier_membership_sha256,
             grid_content_digest=digest, phase=phase, cell_id=cell.cell_id,
             replicate_index=replicate, multiplier_draws=multiplier_draws,
+            roster_ref=authority.roster_ref, joint_group_labels=joint_group_labels,
         ))
     return gaussian, {"dataset_count": dataset_count, "causal_pass_count": multiplier_pass}
 
@@ -2166,7 +2243,7 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     _assert_power_write_open(config, run_root=run_root, stage="validation", phase="gaussian_approximation", generation=cast(int, screen["generation"]))
     selection = _report(selection_ref, run_root=run_root, stage="selection")
-    _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
         raise RecordValidationError("validation selection does not bind the complete shard set")
     grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
@@ -2197,8 +2274,25 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
             "null_false_positive_upper": clopper_pearson_upper(max(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]) for row in null_rows), grid.validation_datasets_per_cell, tail_probability=upper_tail)})
     gaussian_rows = [{"family": row["family"], "tier": row["tier"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
     multiplier_rows = [{"family": row["family"], "tier": row["tier"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
+    gaussian_summary = _aggregate_tier_rows(gaussian_rows)
+    multiplier_summary = _aggregate_tier_rows(multiplier_rows)
+    grid_rows: list[dict[str, object]] = []
+    for shard in shards:
+        for row in cast(list[Mapping[str, object]], shard["cell_results"]):
+            totals = cast(Mapping[str, object], row["gate_totals"])
+            passed = cast(int, totals["causal_pass_count"])
+            family = cast(str, row["family"])
+            tail = lower_tail if family == "alternative" else upper_tail
+            grid_rows.append({
+                "family": family,
+                "tier": config.tier,
+                "lower": clopper_pearson_lower(passed, grid.datasets_per_cell, tail_probability=tail),
+                "upper": clopper_pearson_upper(passed, grid.datasets_per_cell, tail_probability=tail),
+            })
+    grid_summary = _aggregate_tier_rows(grid_rows)
     maximum = max(abs(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]) - cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"])) / grid.validation_datasets_per_cell for row in raw_rows)
-    gaussian_decision, multiplier_decision = _tier_decision(authority=authority, rows=gaussian_rows), _tier_decision(authority=authority, rows=multiplier_rows)
+    gaussian_decision = _tier_decision(authority=authority, rows=gaussian_summary)
+    multiplier_decision = _tier_decision(authority=authority, rows=multiplier_summary)
     raw_ref = _write_validation_evidence(out, {"contract_id": "p0-validation-raw-counts-v1", "draw_domain": "validation", "dataset_count": grid.validation_datasets_per_cell, "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_validation_raw_counts")
     if authority.authority_kind == "roster_bound_selection":
         numeric_value: dict[str, object] = {
@@ -2207,7 +2301,7 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
             "tier_membership_sha256": authority.tier_membership_sha256,
             "rng_contract_sha256": config.rng_contract_sha256,
             "grid_content_sha256": digest,
-            "tier_results": {str(config.tier): multiplier_rows},
+            "tier_results": {str(config.tier): grid_summary},
         }
     else:
         numeric_value = {
@@ -2337,6 +2431,9 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
         raise RecordValidationError("fallback requires the terminal failed Gaussian validation")
     grid, authority = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), load_power_authority(config.authority_ref, run_root=run_root)
     digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
+    joint_group_labels = _roster_joint_group_labels(
+        authority, run_root=run_root, tier=config.tier,
+    )
     raw_rows: list[dict[str, object]] = []
     for cell in frozen_power_cells(grid):
         # The fallback producer regenerates every dataset in its own phase and
@@ -2349,13 +2446,15 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
             passed += int(full_multiplier_gate_pass(swe, tau, authority_kind=authority.authority_kind,
                 tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=digest,
                 phase="full_multiplier_fallback", cell_id=cell.cell_id, replicate_index=replicate,
-                multiplier_draws=grid.multiplier_draws))
+                multiplier_draws=grid.multiplier_draws, roster_ref=authority.roster_ref,
+                joint_group_labels=joint_group_labels))
         lower_tail = grid.familywise_alpha / 729 if cell.family == "alternative" else grid.familywise_alpha / 2187
         raw_rows.append({"cell_id": cell.cell_id, "family": cell.family, "tier": config.tier,
             "gate_totals": {"dataset_count": grid.datasets_per_cell, "causal_pass_count": passed},
             "lower": clopper_pearson_lower(passed, grid.datasets_per_cell, tail_probability=lower_tail),
             "upper": clopper_pearson_upper(passed, grid.datasets_per_cell, tail_probability=lower_tail)})
-    decision = _tier_decision(authority=authority, rows=raw_rows)
+    summary_rows = _aggregate_tier_rows(raw_rows)
+    decision = _tier_decision(authority=authority, rows=summary_rows)
     raw_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-raw-counts-v1", "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_full_multiplier_raw_counts")
     if authority.authority_kind == "roster_bound_selection":
         numeric_value = {
@@ -2364,7 +2463,7 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
             "tier_membership_sha256": authority.tier_membership_sha256,
             "rng_contract_sha256": config.rng_contract_sha256,
             "grid_content_sha256": digest,
-            "tier_results": {str(config.tier): raw_rows},
+            "tier_results": {str(config.tier): summary_rows},
         }
     else:
         numeric_value = {

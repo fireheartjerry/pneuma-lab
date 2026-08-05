@@ -148,6 +148,26 @@ def test_multiplier_bounds_use_frozen_quantile_order_and_benchmark_covariance() 
     assert all(isclose(lower, -result.critical_value * 2**-0.5) for lower in result.lowers)
 
 
+def test_multiplier_process_has_registered_benchmark_scaling() -> None:
+    """The wild process must have the covariance used by its studentization."""
+    rows = [
+        _row("a", real=1, sham=0, none=0, resample=0),
+        _row("b", real=0, sham=1, none=1, resample=1),
+        _row("c", benchmark="TAU", real=1, sham=0, none=0, resample=0),
+        _row("d", benchmark="TAU", real=0, sham=1, none=1, resample=1),
+    ]
+    bounds = multiplier_lower_bounds(
+        rows, contrast_names=("content", "excess"), family_name="co_primary",
+        draws=20_000, seed=41,
+    )
+    draws = analysis_module._multiplier_z_draws(
+        rows, ("content", "excess"), bounds.standard_errors,
+        draws=20_000, seed=41,
+    )
+
+    assert np.diag(np.cov(draws, rowvar=False, ddof=1)) == pytest.approx((1.0, 1.0), abs=0.03)
+
+
 def test_multiplier_philox_order_is_canonicalized_by_task_id() -> None:
     rows = [
         _row("b", real=1, sham=0, none=0, resample=0),
@@ -273,6 +293,53 @@ def test_outcome_classifier_has_frozen_precedence_and_never_feasibility_no_go() 
     sham_secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), (0.01, 0.8, 0.9), (0.03, 1.0, 1.0), bounds)
     assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=sham_secondary) is Verdict.SHAM_PACKET_ONLY
     assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.RESAMPLING_CONSISTENT
+
+
+def test_sham_verdict_does_not_treat_an_excess_only_joint_gate_failure_as_content_failure() -> None:
+    randomization = RandomizationResult(0.0, 1.0, "enumerated_exact", 1, None, None)
+    bounds = SimultaneousBounds("secondary_three", ("sham_packet", "continuation", "total"), (0.1, 0.0, 0.0), (0.1, 1.0, 1.0), (0.01, -1.0, -1.0), (0.2, 1.0, 1.0), 1.0, "task_cluster_rademacher_max_t", 1, 0, 1)
+    secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), (0.01, 1.0, 1.0), (0.03, 1.0, 1.0), bounds)
+    positive = ContrastResult(0.1, 0.1, 0.01, 0.2, randomization)
+    gates = [GateResult(code, True, True, "is", True) for code in (
+        "pipeline_valid", "differential_failure_gap", "content_sharp", "excess_sharp",
+        "content_lower", "excess_lower", "content_materiality", "excess_materiality",
+        "content_resolution", "excess_resolution", "benchmark_nonnegative",
+        "leave_one_nonnegative",
+    )]
+    gates = [
+        gate if gate.code != "benchmark_nonnegative"
+        else GateResult("benchmark_nonnegative", False, False, "is", True)
+        for gate in gates
+    ]
+
+    verdict = classify_verdict(
+        gates, content=positive, excess=positive, sham_packet=positive,
+        resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"),
+        secondary=secondary, content_benchmark_nonnegative=True,
+        content_leave_one_nonnegative=True,
+    )
+
+    assert verdict is Verdict.RESAMPLING_CONSISTENT
+
+
+def test_batch_leave_one_empty_support_fails_only_affected_dataset() -> None:
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+    overall = np.zeros((2, 16), dtype=np.int64)
+    overall[:, 8] = (1, 2)
+    group = np.zeros((2, 16), dtype=np.int64)
+    group[:, 8] = (1, 1)
+    patterns = np.stack((overall, group, overall, np.zeros_like(group)), axis=1)
+    batch = BinarySufficientStatisticsBatch(
+        roster_ref=ref,
+        group_manifest=(("SWE", None), ("SWE", GroupLabel(GroupKind.LANGUAGE, "only")), ("TAU", None), ("TAU", GroupLabel(GroupKind.LANGUAGE, "empty"))),
+        pattern_counts=patterns,
+        arm_failure_counts=np.zeros((2, 2, 4), dtype=np.int64),
+        pipeline_invalid_counts=np.zeros(2, dtype=np.int64),
+    )
+
+    result = evaluate_binary_gate_batch(batch, AnalysisConfig(), critical_values=np.zeros(2))
+
+    assert result.all_leave_one_nonnegative.tolist() == [False, True]
 
 
 def test_production_analysis_has_no_caller_selected_seed() -> None:

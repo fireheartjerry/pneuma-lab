@@ -38,6 +38,52 @@ def test_gaussian_max_boundary_cases_and_independent_case() -> None:
     assert bivariate_normal_cdf_equal_threshold(independent, 0.0) == pytest.approx(1 - alpha, abs=1e-10)
 
 
+def test_gaussian_grid_critical_is_derived_from_each_dataset_covariance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import power
+
+    counts = simulate_benchmark_pattern_counts(
+        p0=0.4, gamma=0.6, rho=0.4, family="alternative", task_count=20,
+        authority_kind="synthetic_validation", tier_membership_sha256="1" * 64,
+        grid_content_digest="2" * 64, phase="gaussian_approximation",
+        cell_id="alternative:swe-00:tau-00", replicate_index=7,
+        joint_group_sizes=(20,), draw_domain="validation",
+    )
+    seen: list[tuple[float, float]] = []
+
+    def fake_critical(correlation: float, alpha: float) -> float:
+        seen.append((correlation, alpha))
+        return 1.75
+
+    monkeypatch.setattr(power, "gaussian_max_critical", fake_critical)
+
+    assert power._gaussian_critical_for_counts(counts, counts) == 1.75
+    assert len(seen) == 1
+    assert -1.0 <= seen[0][0] <= 1.0
+    assert seen[0][1] == 0.05
+
+
+def test_cellwise_power_certificates_aggregate_to_four_worst_case_rows() -> None:
+    from pneuma_lab.resampling_null.power import _aggregate_tier_rows
+
+    rows = [
+        {"family": "alternative", "tier": 160, "lower": 0.83, "upper": 0.9},
+        {"family": "alternative", "tier": 160, "lower": 0.81, "upper": 0.88},
+        {"family": "null_both", "tier": 160, "lower": 0.0, "upper": 0.03},
+        {"family": "null_content", "tier": 160, "lower": 0.0, "upper": 0.04},
+        {"family": "null_excess", "tier": 160, "lower": 0.0, "upper": 0.02},
+    ]
+
+    summary = _aggregate_tier_rows(rows)
+
+    assert [row["family"] for row in summary] == [
+        "alternative", "null_both", "null_content", "null_excess",
+    ]
+    assert summary[0]["lower"] == 0.81
+    assert summary[0]["cell_count"] == 2
+
+
 def test_clopper_pearson_uses_one_sided_tail_without_halving() -> None:
     assert clopper_pearson_lower(8, 10, tail_probability=0.05) < 0.8
     assert clopper_pearson_upper(0, 10, tail_probability=0.05) > 0.0

@@ -1,7 +1,7 @@
 {
-    "description": "Citation verification queue for paper/placebo_protocol.tex. Every entry must reach state 'verified' before the paper preflight will pass. An entry in state 'unresolved' is a blocking defect, not a formatting nit: the manuscript makes a prior-art comparison it cannot currently substantiate.",
-    "checked_on": "2026-08-02",
-    "method": "arXiv export API id_list lookup; titles, author lists, and dates transcribed from the returned Atom feed.",
+    "description": "Primary-record verification queue for sources introduced or rechecked for paper/placebo_protocol.tex. Every entry must reach state 'verified' before the paper preflight will pass.",
+    "checked_on": "2026-08-04",
+    "method": "Primary arXiv, publisher, standards-body, ACL Anthology, or pinned model-card records; titles, authors, identifiers, and the cited scope were checked against the named record.",
     "entries": [
         {
             "key": "arl_pivotal_retry_2026",
@@ -37,6 +37,86 @@
             ],
             "cited_for": "closest prior art for the retry-versus-feedback contrast; the manuscript is required to state an explicit delta against it",
             "note": "Title, sole author, submission date, abstract scope, and arXiv subject classification verified against the primary arXiv record on 2026-08-02: https://arxiv.org/abs/2607.26117."
+        },
+        {
+            "key": "swebench_live_2025",
+            "state": "verified",
+            "identifier": "arXiv:2505.23419",
+            "title": "SWE-bench Goes Live!",
+            "cited_for": "the live-updatable multilingual repository-repair environment",
+            "note": "Title, author list, date, and benchmark scope verified against the primary arXiv record on 2026-08-04."
+        },
+        {
+            "key": "tau_bench_2024",
+            "state": "verified",
+            "identifier": "arXiv:2406.12045",
+            "title": "tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains",
+            "cited_for": "stateful policy-constrained tool/API dialogue",
+            "note": "Title, author list, date, and benchmark scope verified against the primary arXiv record on 2026-08-04."
+        },
+        {
+            "key": "qwen36_modelcard_2026",
+            "state": "verified",
+            "identifier": "Hugging Face revision 95a723d08a9490559dae23d0cff1d9466213d989",
+            "title": "Qwen3.6-35B-A3B-FP8 model card",
+            "cited_for": "the frozen subject-model identity",
+            "note": "Repository, model identity, and immutable revision verified against the pinned first-party model card on 2026-08-04."
+        },
+        {
+            "key": "kwon_pagedattention_2023",
+            "state": "verified",
+            "identifier": "arXiv:2309.06180",
+            "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+            "cited_for": "the vLLM inference stack",
+            "note": "Title and full author list verified against the primary arXiv record on 2026-08-04."
+        },
+        {
+            "key": "romano_wolf_stepdown_2005",
+            "state": "verified",
+            "identifier": "doi:10.1198/016214504000000539",
+            "title": "Exact and Approximate Stepdown Methods for Multiple Hypothesis Testing",
+            "cited_for": "the stepdown multiple-testing procedure",
+            "note": "Bibliographic record verified against the publisher DOI record on 2026-08-04."
+        },
+        {
+            "key": "chernozhukov_multiplier_2013",
+            "state": "verified",
+            "identifier": "arXiv:1212.6906",
+            "title": "Gaussian Approximations and Multiplier Bootstrap for Maxima of Sums of High-Dimensional Random Vectors",
+            "cited_for": "the multiplier-bootstrap basis for max-statistic inference",
+            "note": "Title and full author list verified against the primary arXiv record on 2026-08-04."
+        },
+        {
+            "key": "min_rethinkingdemonstrations_2022",
+            "state": "verified",
+            "identifier": "doi:10.18653/v1/2022.emnlp-main.759",
+            "title": "Rethinking the Role of Demonstrations: What Makes In-Context Learning Work?",
+            "cited_for": "form and label-space effects independent of demonstration correctness",
+            "note": "Title, author list, pages, and cited scope verified against ACL Anthology on 2026-08-04."
+        },
+        {
+            "key": "gehring_rlef_2024",
+            "state": "verified",
+            "identifier": "arXiv:2410.02089",
+            "title": "RLEF: Grounding Code LLMs in Execution Feedback with Reinforcement Learning",
+            "cited_for": "execution feedback bundled with repeated code-generation attempts",
+            "note": "Title, full author list, and cited scope verified against the primary arXiv record on 2026-08-04."
+        },
+        {
+            "key": "ich_e10_2000",
+            "state": "verified",
+            "identifier": "ICH E10",
+            "title": "Choice of Control Group and Related Issues in Clinical Trials",
+            "cited_for": "assay sensitivity and active-control interpretability",
+            "note": "Guideline identity and control-group scope verified against the official ICH guideline PDF on 2026-08-04."
+        },
+        {
+            "key": "kaliyev_noisefloor_2026",
+            "state": "verified",
+            "identifier": "arXiv:2606.20695",
+            "title": "How Much Coordination Gain Is Real? A Paired Noise-Floor Protocol for Multi-Agent LLM Benchmarks",
+            "cited_for": "a measured sampling-noise floor adjacent to the resampling-resolution idea",
+            "note": "Title, full author list, and cited scope verified against the primary arXiv record on 2026-08-04."
         }
     ]
 }

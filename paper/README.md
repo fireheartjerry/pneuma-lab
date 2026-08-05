@@ -1,34 +1,38 @@
 # NeurIPS 2026 workshop submission
 
-Two candidate submissions to **"Who Verifies the Agents? Toward Reliable Agent
-Development"** at NeurIPS 2026 live in this directory. They share
-`refs.bib`, `neurips_2026.sty`, and the pre-submission checklist below.
+The canonical submission is now **The PLACEBO Trial: Isolating the Causal Effect
+of Verifier Feedback in Long-Horizon Agents**. PLACEBO abbreviates
+**Preregistered, Label-Blind, Arm-Controlled Causal Evaluation of Behavioral
+Outcomes**; the acronym is the protocol's enforceable design contract, not a
+nickname for the sham arm.
 
-| Document      | Working title                                                                                          | State                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `main.tex`    | _Ten Conversations, Two Thousand Questions: What Agent-Memory Evaluations Could Actually Have Detected_ | Drafted end to end. Numbers from the coded corpus; two figures outstanding.       |
-| `placebo.tex` | _No Method Passes: A Gauge Study of Agent Self-Report as a Measurement Instrument_                     | **Body complete at 9 pages, zero result placeholders.** All numbers are measured. |
+| Path | Role | State |
+| --- | --- | --- |
+| `main.tex` | conventional build entrypoint | inputs `placebo_protocol.tex` |
+| `placebo_protocol.tex` | canonical manuscript body | pre-results draft; compiles |
+| `placebo.tex` | retired self-report/gauge draft | archive only; do not submit |
+| Git history before the `main.tex` redirect | retired memory-audit draft | archive only |
 
-`placebo.tex` reports a measurement-system study of the agent self-report
-channel: no elicitation method in common use passes AIAG gauge acceptance, and
-the measured size of a planted content effect varies 4.18x with the wording of
-the question alone. Its numbers come from
-`build/research/placebo/instrument/`, each with the script that produced it. The
-placebo intervention it was originally built to run is described in one section
-and deliberately not run -- the instrument fails assay sensitivity, so its null
-would be uninterpretable. Decisions DL-77 through DL-96.
+The result-to-paper pipeline still targets `placebo_protocol.tex`, so one source
+drives both automated result insertion and the conventional `main.tex` build.
+The old manuscripts are useful provenance, not candidate submissions.
 
-**Decide before submission which document ships.** The CFP permits one primary
-submission at a time.
+The current source inventory is explicit: **26 unique citations are active** in
+the manuscript, backed by **89 unique records** across the two BibTeX libraries.
+See `placebo/source-ledger.md` for the claim-by-claim citation role and
+`placebo/citation-queue.json` for primary-record verification state.
 
 ## Venue facts
+
+Reverified against the official workshop CFP on 2026-08-04. Reverify again
+against the live page and exact submission package before release.
 
 | Item                       | Value                                                                         |
 | -------------------------- | ----------------------------------------------------------------------------- |
 | Workshop                   | Who Verifies the Agents? Toward Reliable Agent Development                    |
 | CFP                        | <https://verify-agents-workshop.github.io/>                                   |
 | Page limit                 | **4-9 pages**, excluding references and appendices (demo papers: 4 pages max) |
-| Body budget for this draft | ~7.0 pages (see per-section notes in `main.tex`)                              |
+| Body budget for this draft | 8 pages in the current compiled pre-results PDF                              |
 | Review                     | **Double-blind**                                                              |
 | Archival                   | Non-archival; accepted work appears on OpenReview, not formal proceedings     |
 | Deadline                   | **2026-08-29, 23:59 AoE**                                                     |
@@ -57,11 +61,8 @@ The `.sty` self-identifies as
 Files in this directory:
 
 - `neurips_2026.sty` -- unmodified upstream copy. **Do not edit.**
-- `neurips_2026_template_upstream.tex` -- unmodified copy of the upstream
-  `neurips_2026.tex`, kept for reference only; it is not compiled.
-- `neurips_2026_checklist_upstream.tex` -- unmodified copy of the upstream
-  `checklist.tex`. The NeurIPS paper checklist is a main-conference
-  requirement; the workshop CFP does not require it. Kept for reference.
+- `neurips_2026_template_upstream.tex` -- unmodified upstream example.
+- `neurips_2026_checklist_upstream.tex` -- unmodified upstream checklist.
 
 To re-verify integrity:
 
@@ -71,41 +72,43 @@ sha256sum neurips_2026.sty
 
 ## Files
 
-- `main.tex` -- the detectability-audit paper, drafted end to end.
-- `placebo.tex` -- the placebo self-report study, pre-results first draft.
+- `main.tex` -- canonical build entrypoint.
+- `placebo_protocol.tex` -- maintained PLACEBO Trial manuscript.
+- `placebo.tex` -- retired self-report/gauge draft retained for provenance.
 - `refs.bib` -- shared verified bibliography. **No entry may be added without
   primary-source verification.** Entries carrying an `UNVERIFIED` comment have
   a confirmed record but an unconfirmed author list or content attribution and
   must be re-checked before camera-ready.
+- `placebo/refs-placebo.bib` -- PLACEBO-specific bibliography additions.
+- `placebo/source-ledger.md` -- every active citation and its role.
 - `build.sh` -- POSIX build script (`./build.sh`, `./build.sh clean`,
-  `./build.sh distclean`); `JOB=placebo ./build.sh` builds the other document.
+  `./build.sh distclean`).
 - `Makefile` -- same targets plus `make blindcheck`. Requires GNU make.
 - `.gitignore` -- LaTeX build artifacts and the compiled PDF.
 
 ## Building
 
 ```sh
-./build.sh          # -> main.pdf
+./build.sh          # -> main.pdf, the PLACEBO Trial
 ./build.sh clean    # remove aux/log/out/bbl/blg/fls/fdb/synctex, keep the PDF
 ./build.sh distclean
 
 make                # same, if GNU make is available
 make blindcheck     # fail if a forbidden string survives into main.pdf
 
-JOB=placebo ./build.sh      # -> placebo.pdf
-make JOB=placebo            # same
-make JOB=placebo blindcheck # blind check the placebo draft
-
-JOB=placebo ./preflight.sh  # full mechanical pre-submission check
-make JOB=placebo preflight  # same, via make
+JOB=placebo_protocol ./build.sh      # build the canonical source directly
+make JOB=placebo_protocol            # same
+JOB=placebo_protocol ./preflight.sh  # inspect source and rendered PDF directly
 ```
 
 Requires `latexmk` + `pdflatex` (TeX Live or MiKTeX). `build.sh` falls back to
 a manual `pdflatex`/`bibtex`/`pdflatex`/`pdflatex` sequence if `latexmk` is
 missing, and exits 127 with a clear message if no LaTeX toolchain is present.
 
-Both documents currently build clean: no undefined citations, no overfull
-boxes, and `pdftotext | grep -i pneuma` returns nothing.
+The canonical source currently compiles to 10 total pages: 8 body pages and 2
+reference pages. The pre-results draft intentionally retains visible result
+slots and therefore is not submission-ready even though the LaTeX build is
+healthy.
 
 ### Note on the first-page footer
 
@@ -170,10 +173,11 @@ build. Do not check anything off from memory.
 
 ### Anonymization (double-blind)
 
-- [ ] `main.tex` still uses `\usepackage[dblblindworkshop]{neurips_2026}` with
+- [ ] `placebo_protocol.tex` still uses `\usepackage[dblblindworkshop]{neurips_2026}` with
       **no** `final` and **no** `preprint` option; the title block must read
       "Anonymous Author(s)".
-- [ ] The real `\author{...}` block is still commented out.
+- [ ] The title block still renders `Anonymous Author(s)` and contains no real
+      author or affiliation metadata.
 - [ ] **The string `Pneuma` does not appear anywhere in the PDF.** This is the
       repository/project name and it is identifying. Check the body, figures,
       table cells, code listings, file paths in screenshots, URLs, the

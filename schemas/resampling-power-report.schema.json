@@ -615,8 +615,15 @@
                     ]
                 },
                 "critical_value": {
-                    "type": "number",
-                    "minimum": 0
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        {
+                            "const": "correlation_adaptive_gaussian_max"
+                        }
+                    ]
                 },
                 "dataset_count": {
                     "type": "integer",
