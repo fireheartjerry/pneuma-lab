@@ -7624,3 +7624,27 @@ new closure document is
 `docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md`.
 Implementation is complete; official E2E and scientific authority remain
 pending the fresh external actions listed there.
+
+## Action-021 — pre-outcome statistical fidelity repair — 2026-08-04
+
+Two independent external mathematical audits were treated as untrusted review
+inputs and checked against the live implementation. Five material defects were
+confirmed and repaired locally: multiplier scaling, real-tier power-gate
+routing and correlation-adaptive Gaussian screening, family-level tier-row
+aggregation, dataset-local leave-one support handling, and content-specific
+SHAM verdict routing. The four-arm estimands and registered scientific
+thresholds were not changed.
+
+The paper was corrected to state the rank-four contrast geometry, the
+packet-bearing bundle interpretation, and duplicate-control symmetry. A
+supplemental proof source was added but not inserted into the main submission.
+Focused analysis/power tests passed (53), changed-surface Ruff passed, schema
+tests and the canonical status check passed, and the hardened LaTeX build
+produced a 10-page PDF. No AWS call, cloud mutation, model/benchmark execution,
+pilot, outcome access, unblind, scientific receipt, or claim occurred.
+
+This amendment invalidates any prospective production analysis-image or signed
+run binding created before the repair. A fresh production image, C120/C160
+power finalisation, run specification, and official authorization must bind the
+repaired digests before launch. Full rationale:
+`docs/research/neurips-2026-workshop/64-pre-outcome-statistical-fidelity-repair-20260804.md`.

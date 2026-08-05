@@ -1,0 +1,45 @@
+% Supplemental mathematical appendix. Include only if the venue permits it;
+% the main paper remains the canonical submission body.
+\section{Algebra and randomisation geometry of PLACEBO}
+\label{app:placebo-math}
+
+\paragraph{Contrast completeness.}
+For the contrast matrix $C$ in Section~\ref{sec:inference}, direct row reduction
+gives $\operatorname{rank}(C)=4$ and $C\mathbf 1_5=0$. Hence
+$\ker(C)=\operatorname{span}\{\mathbf 1_5\}$ and the registered rows span every
+identified contrast among the five potential-outcome means. The two displayed
+decomposition identities follow by adding the corresponding rows of $C$.
+
+\paragraph{Orthogonal coordinates.}
+The coefficient vectors of $(s,p,g,d)$ are pairwise orthogonal and each sums to
+zero. They are nonzero, so they form an orthogonal basis of the four-dimensional
+contrast space $\mathbf 1_5^\perp$. This basis isolates specificity, the
+packet-bearing bundle, continuation gain, and duplicate-control disagreement
+without asserting a factorial decomposition that the four arms cannot identify.
+
+\paragraph{Allocation orbit.}
+Before outcome observation, the four labelled slots carry a uniformly random
+permutation of $(R,S,N,Z)$. Because $N$ and $Z$ receive the same intervention,
+the scientific allocation has $4!/2!=12$ elements: the cosets of the subgroup
+$\langle(N\ Z)\rangle$ in $S_4$. This is a coset space, not a quotient group,
+because that subgroup is not normal. The independent fair label swap restores
+the full labelled assignment needed for the duplicate-control audit.
+
+\paragraph{Invariant and anti-invariant components.}
+Let $T$ swap $N$ and $Z$. Then $T$ fixes $s,p,g$ and maps $d$ to $-d$.
+Conditionally on the observed magnitudes $|D_i|$, exchangeability makes the
+audit statistic $\sum_i w_i\epsilon_iD_i$ an exact Rademacher randomisation
+variable. For equal weights $w_i=1/N$ and binary outcomes, exactly $m$
+discordant pairs give
+\[
+q_0=\frac{m}{N},\qquad
+\operatorname{Var}_{\epsilon}\!\left(\frac1N\sum_i\epsilon_iD_i
+\middle| |D|\right)=\frac{m}{N^2}=\frac{q_0}{N}.
+\]
+
+\paragraph{Intersection--union decision.}
+The scientific alternative is $H_1=\{\tau_{\rm content}>0\}\cap
+\{\tau_{\rm excess}>0\}$. Its null is the union of the two component nulls.
+Rejecting only when both level-$\alpha$ component tests reject has size at most
+$\alpha$: under any point in the union, at least one component null is true,
+and joint rejection is a subset of that true-null test's rejection event.

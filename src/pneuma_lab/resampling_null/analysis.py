@@ -274,7 +274,11 @@ def multiplier_lower_bounds(rows: Sequence[AnalysisRow], *, contrast_names: tupl
             centered = matrix - matrix.mean(axis=0)
             signs = generator.integers(0, 2, size=n, dtype=np.int8) * 2 - 1
             total += signs @ centered * sqrt(n / (n - 1)) / n
-        z = total / (2 * b_count) / np.array(standard_errors)
+        # The registered estimator gives every benchmark weight 1 / B.  Each
+        # matrix contribution above is already its within-benchmark mean, so
+        # the multiplier process must average those contributions once, not
+        # apply an additional factor of one half.
+        z = total / b_count / np.array(standard_errors)
         maxima.append(float(np.max(z)))
     critical, order = conservative_multiplier_quantile(maxima, alpha=0.05)
     lowers = tuple(estimate - critical * standard_error for estimate, standard_error in zip(estimates, standard_errors, strict=True))
@@ -296,7 +300,7 @@ def _multiplier_z_draws(rows: Sequence[AnalysisRow], names: tuple[str, ...], sta
             n = len(matrix)
             signs = generator.integers(0, 2, size=n, dtype=np.int8) * 2 - 1
             total += signs @ (matrix - matrix.mean(axis=0)) * sqrt(n / (n - 1)) / n
-        result[draw] = total / 4 / denominator
+        result[draw] = total / len(matrices) / denominator
     return result
 
 
@@ -686,7 +690,15 @@ def evaluate_binary_gate_batch(
     se = np.sqrt(np.maximum(0.0, covariance.sum(axis=1).diagonal(axis1=1, axis2=2) / 4))
     se[np.any(n < 2, axis=1)] = np.inf
     primary_lowers = np.full_like(estimates, -np.inf)
-    np.subtract(estimates, critical[:, None] * np.where(np.isfinite(se), se, 0.0), out=primary_lowers, where=np.isfinite(se))
+    valid_bound = np.isfinite(se) & np.isfinite(critical[:, None])
+    margin = np.zeros_like(estimates)
+    np.multiply(critical[:, None], se, out=margin, where=valid_bound)
+    np.subtract(
+        estimates,
+        margin,
+        out=primary_lowers,
+        where=valid_bound,
+    )
     content_p = _count_sharp_tail(counts, excess=False, draws=config.sharp_draws, seed=0)
     excess_p = _count_sharp_tail(counts, excess=True, draws=config.sharp_draws, seed=0)
     r95 = _count_resolution(counts)
@@ -700,12 +712,14 @@ def evaluate_binary_gate_batch(
             continue
         base = 0 if benchmark == "SWE" else 1
         retained = n[:, base] - patterns[:, entry, :].sum(axis=1)
-        if np.any(retained <= 0):
-            leave_one_ok &= False
-            continue
-        retained_mean = np.einsum("ni,ik->nk", counts[:, base, :] - patterns[:, entry, :], contrast_matrix) / retained[:, None]
+        supported = retained > 0
+        # One unsupported simulated dataset must fail closed without
+        # poisoning every other dataset in the vectorized batch.
+        leave_one_ok &= supported
+        safe_retained = np.where(supported, retained, 1)
+        retained_mean = np.einsum("ni,ik->nk", counts[:, base, :] - patterns[:, entry, :], contrast_matrix) / safe_retained[:, None]
         other_mean = means_by_benchmark[:, 1 - base, :]
-        leave_one_ok &= np.all((retained_mean + other_mean) / 2 >= -0.05, axis=1)
+        leave_one_ok &= supported & np.all((retained_mean + other_mean) / 2 >= -0.05, axis=1)
     causal = ((invalid == 0) & (content_p <= config.alpha) & (excess_p <= config.alpha)
               & np.all(primary_lowers > 0, axis=1) & np.all(estimates >= config.delta_star, axis=1)
               & np.all(estimates > r95[:, None], axis=1) & benchmark_ok & leave_one_ok
@@ -717,6 +731,8 @@ def classify_verdict(
     gates: Sequence[GateResult], *, content: ContrastResult, excess: ContrastResult,
     sham_packet: ContrastResult, resolution: ResolutionResult,
     secondary: SecondaryFamilyResult,
+    content_benchmark_nonnegative: bool | None = None,
+    content_leave_one_nonnegative: bool | None = None,
 ) -> Verdict:
     """Apply the closed outcome precedence; feasibility is deliberately absent."""
     gate_map = {gate.code: gate for gate in gates}
@@ -732,7 +748,22 @@ def classify_verdict(
             and content.estimate > resolution.r95 and excess.estimate > resolution.r95):
         return Verdict.CAUSAL_CONTENT
     sham_holm = secondary.holm_adjusted_p[0]
-    content_registered_failure = any(not gate_map.get(code, GateResult(code, False, None, "", None)).passed for code in ("content_lower", "content_sharp", "content_materiality", "content_resolution", "benchmark_nonnegative", "leave_one_nonnegative"))
+    if content_benchmark_nonnegative is None:
+        content_benchmark_nonnegative = gate_map.get(
+            "benchmark_nonnegative", GateResult("benchmark_nonnegative", False, None, "", None)
+        ).passed
+    if content_leave_one_nonnegative is None:
+        content_leave_one_nonnegative = gate_map.get(
+            "leave_one_nonnegative", GateResult("leave_one_nonnegative", False, None, "", None)
+        ).passed
+    content_registered_failure = (
+        any(
+            not gate_map.get(code, GateResult(code, False, None, "", None)).passed
+            for code in ("content_lower", "content_sharp", "content_materiality", "content_resolution")
+        )
+        or not content_benchmark_nonnegative
+        or not content_leave_one_nonnegative
+    )
     if (sham_packet.estimate >= 0.05 and sham_packet.estimate > resolution.r95 and sham_holm <= 0.05 and sham_packet.simultaneous_lower > 0 and content_registered_failure):
         return Verdict.SHAM_PACKET_ONLY
     if (not isfinite(content.standard_error) or content.standard_error <= 0 or
@@ -895,5 +926,16 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, manifest_ref
         for benchmark in ("SWE", "TAU")
     )
     leave_one = leave_one_estimates(rows)
-    verdict = classify_verdict(gates, content=content, excess=excess, sham_packet=sham, resolution=resolution, secondary=secondary)
+    verdict = classify_verdict(
+        gates,
+        content=content,
+        excess=excess,
+        sham_packet=sham,
+        resolution=resolution,
+        secondary=secondary,
+        content_benchmark_nonnegative=all(item.content >= 0.0 for item in benchmark_estimates),
+        content_leave_one_nonnegative=all(
+            item.content is not None and item.content >= -0.05 for item in leave_one
+        ),
+    )
     return AnalysisResult(content, excess, sham, contrast_values["continuation"], contrast_values["total"], contrast_values["null"], omnibus_sharp_pvalue(rows, draws=sharp_draws, seed=seed), primary, secondary, resolution, _failure_gap(statistics), benchmark_estimates, leave_one, gates, verdict, tuple(gate.code for gate in gates if not gate.passed))

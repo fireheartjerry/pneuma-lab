@@ -253,15 +253,17 @@ PLACEBO expands to \placeboexpanded. The Protocol is the reusable design; the
 Trial is its registered instantiation for the frozen subject, roster, and two
 environments in this paper. Preregistration freezes the analysis and verdicts;
 label blinding conceals arm identity until unblinding; arm control separates
-content, packet form, and continuation; causal snapshot pairing holds the
+feedback specificity, the packet-bearing intervention bundle, and continuation;
+causal snapshot pairing holds the
 pre-intervention trajectory fixed; and evaluation of behavioral outcomes limits
 claims to registered, programmatically graded endpoints. Violating any term
 invalidates the corresponding PLACEBO claim.
 
 \subsection{Unit, trigger, and snapshot}
 
-The randomised causal unit is one benchmark task definition. Seeds and branches
-are repeated measurements nested inside the task; repository is the highest
+The randomised causal unit is one benchmark task-prefix block. Its four branch
+slots are within-block treatment positions, not four independent units. Seeds
+and branches are repeated measurements nested inside the task; repository is the highest
 lineage for repair tasks, and domain plus issue family are additional blocks
 for dialogue tasks.
 
@@ -414,9 +416,20 @@ acknowledgement and cited-finding rates.
 
 \subsection{Estimands}
 
-Let $Y_R, Y_S, Y_N, Y_Z$ be task success under \texttt{REAL}, \texttt{SHAM},
-\texttt{NONE}, \texttt{RESAMPLE}, and let $Y_0$ be the disposable prefix-state
-grade. With $\text{no\_feedback} = (Y_N + Y_Z)/2$:
+Let $\mathbf Y=(Y_R,Y_S,Y_N,Y_Z,Y_0)^\top$ collect the four continuation
+outcomes and disposable prefix-state grade. The registered estimands are
+$\boldsymbol\Delta=C\mathbf Y$, where
+\[
+C=\begin{pmatrix}
+1&-1&0&0&0\\
+1&0&-\tfrac12&-\tfrac12&0\\
+0&1&-\tfrac12&-\tfrac12&0\\
+0&0&\tfrac12&\tfrac12&-1\\
+1&0&0&0&-1\\
+0&0&-1&1&0
+\end{pmatrix}.
+\]
+In row order these are
 \begin{align*}
 \Delta_{\text{content}} &= Y_R - Y_S
 &\Delta_{\text{excess}} &= Y_R - \text{no\_feedback}\\
@@ -425,6 +438,22 @@ grade. With $\text{no\_feedback} = (Y_N + Y_Z)/2$:
 \Delta_{\text{total}} &= Y_R - Y_0
 &\Delta_{\text{null}} &= Y_Z - Y_N
 \end{align*}
+
+The matrix has rank four and kernel $\operatorname{span}\{\mathbf 1_5\}$:
+only relative outcomes are identified. Its rows obey
+$\Delta_{\text{excess}}=\Delta_{\text{content}}+
+\Delta_{\text{sham\_packet}}$ and
+$\Delta_{\text{total}}=\Delta_{\text{excess}}+
+\Delta_{\text{continuation}}$. Equivalently, the four orthogonal coordinates
+\[
+s=Y_R-Y_S,\quad p=\tfrac{Y_R+Y_S-Y_N-Y_Z}{2},\quad
+g=\tfrac{Y_R+Y_S+Y_N+Y_Z}{4}-Y_0,\quad d=Y_Z-Y_N
+\]
+span the identified contrast space. Here $s$ is feedback specificity, $p$ is
+the average packet-bearing intervention bundle, $g$ is continuation gain, and
+$d$ is the duplicate-control audit. Because there is no neutral-format fifth
+arm, $p$ is not a pure packet-form effect and this is not a $2\times2$
+factorial design.
 
 $\Delta_{\text{content}}$ and $\Delta_{\text{excess}}$ are co-primary; both must
 clear every registered gate. The other three are required decompositions, not
@@ -447,6 +476,13 @@ labels. Neither $q_0$ nor $r_{95}$ is a confidence interval or a minimum
 detectable effect. $\Delta_{\text{null}}$ is a randomised-label balance
 diagnostic only; there is deliberately no mean-equivalence gate, because
 cancellation could let one pass under maximal unit-level instability.
+Swapping the two duplicate-control labels leaves every causal contrast fixed
+and sends only $d$ to $-d$. Thus the causal coordinates occupy the invariant
+subspace and the audit occupies its one-dimensional anti-invariant complement.
+For an equal-weight roster of $N$ tasks with $m$ discordant duplicate-control
+pairs, $q_0=m/N$ and
+$\operatorname{Var}_{\epsilon}(\Delta_{\text{null}}\mid |D|)=q_0/N$; $r_{95}$
+is the exact conditional Rademacher radius, not a normal approximation.
 
 \subsection{Tests and gates}
 
@@ -458,7 +494,7 @@ scientific alternative is the intersection
 $\{\tau_{\text{content}} > 0 \wedge \tau_{\text{excess}} > 0\}$, the sharp-null
 decision is an intersection--union test and needs no multiplicity correction
 \cite{berger_intersectionunion_1982}. Average-effect inference uses a
-benchmark-stratified, task-cluster Romano--Wolf multiplier max-$t$ procedure
+benchmark-stratified, task-cluster single-step Rademacher multiplier max-$t$ procedure
 with $99{,}999$ frozen Rademacher draws, giving simultaneous one-sided lower
 bounds $L_k$ \cite{romano_wolf_stepdown_2005,chernozhukov_multiplier_2013}.
 These bounds are asymptotically valid and Neyman-conservative
@@ -585,6 +621,11 @@ verifier; does not assert sham feedback is semantically inert; does not identify
 packet form alone; does not treat seeds, trajectories, issues from one
 repository, or dialogue permutations as independent scientific units; and does
 not claim exact prompt-token equality between packet and no-packet arms.
+If $\mu_V$ denotes the mean under a hypothetical neutral-format packet, then
+$\mu_R-\mu_S=(\mu_R-\mu_V)+(\mu_V-\mu_S)$: the present trial identifies only
+their sum, not evidence value and mismatched-content penalty separately. That
+decomposition requires a fifth arm and is future work, not a latent claim of
+this four-arm design.
 
 % =====================================================================
 \section{Reproducibility, limitations, and ethics}
