@@ -125,6 +125,18 @@ def test_absent_error_classifier_is_narrow() -> None:
     assert not aws_surface_provider._absent(_Other(), "InvalidInstanceID.NotFound")
 
 
+def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
+    assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
+        {"EnableDnsSupport": {"Value": True}}, "EnableDnsSupport"
+    )
+    assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
+        {"EnableDnsHostnames": {"Value": True}}, "EnableDnsHostnames"
+    )
+    assert not aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
+        {"EnableDnsSupport": {"Value": False}}, "EnableDnsSupport"
+    )
+
+
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     class _Exceptions:
         class InvalidInstanceId(Exception):

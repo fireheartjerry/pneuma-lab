@@ -396,13 +396,23 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if len(vpcs) != 1 or vpcs[0].get("State") != "available" or vpcs[0].get("CidrBlock") != "10.42.0.0/16" or vpcs[0].get("IsDefault") is True:
             raise CloudManifestError("provider VPC binding is not the registered private non-default VPC")
         attributes = [self._call("describe_vpc_attribute.dns_support", self.ec2.describe_vpc_attribute, VpcId=self.config.vpc_id, Attribute="enableDnsSupport"), self._call("describe_vpc_attribute.dns_hostnames", self.ec2.describe_vpc_attribute, VpcId=self.config.vpc_id, Attribute="enableDnsHostnames")]
-        if any(item.get("EnableDnsSupport", item.get("EnableDnsHostnames")) is not True for item in attributes):
+        if not (
+            self._vpc_attribute_enabled(attributes[0], "EnableDnsSupport")
+            and self._vpc_attribute_enabled(attributes[1], "EnableDnsHostnames")
+        ):
             raise CloudManifestError("private action subnet requires VPC DNS support and hostnames")
         igws = self._call("describe_internet_gateways", self.ec2.describe_internet_gateways, Filters=[{"Name": "attachment.vpc-id", "Values": [self.config.vpc_id]}]).get("InternetGateways", [])
         nats = self._call("describe_nat_gateways", self.ec2.describe_nat_gateways, Filter=[{"Name": "vpc-id", "Values": [self.config.vpc_id]}, {"Name": "state", "Values": ["pending", "available", "deleting"]}]).get("NatGateways", [])
         transit = self._call("describe_transit_gateway_attachments", self.ec2.describe_transit_gateway_attachments, Filters=[{"Name": "resource-id", "Values": [self.config.vpc_id]}]).get("TransitGatewayAttachments", [])
         if igws or nats or transit:
             raise CloudManifestError("provider VPC has an internet, NAT, or transit attachment")
+
+    @staticmethod
+    def _vpc_attribute_enabled(response: Mapping[str, object], key: str) -> bool:
+        value = response.get(key)
+        if isinstance(value, Mapping):
+            value = value.get("Value")
+        return value is True
 
     def _find_or_create_security_groups(self) -> None:
         self.endpoint_security_group_id = cast(str, self._call("create_security_group.endpoint", self.ec2.create_security_group, GroupName=_name(f"pneuma-surface-v2-endpoints-{self.config.action_id}"), Description="Pneuma FIXTURE-NONSCI v2 endpoint SG", VpcId=self.config.vpc_id)["GroupId"])
