@@ -24,6 +24,15 @@ class _FakeEc2:
     def describe_security_groups(self, **kwargs):
         return {"SecurityGroups": []}
 
+    def describe_subnets(self, **kwargs):
+        assert kwargs == {
+            "Filters": [
+                {"Name": "vpc-id", "Values": [aws_surface_provider.VPC_ID]},
+                {"Name": "cidr-block", "Values": [aws_surface_provider.SUBNET_CIDR]},
+            ]
+        }
+        return {"Subnets": []}
+
 
 class _FakeSts:
     def get_caller_identity(self):
@@ -74,6 +83,27 @@ def test_preflight_uses_the_valid_ec2_offering_filter(monkeypatch) -> None:
 
     assert result["capacity_offerings"] == ["us-east-1a"]
     assert result["fresh_resource_absence_before"] is True
+
+
+def test_preflight_rejects_registered_subnet_cidr_conflict(monkeypatch) -> None:
+    import pytest
+
+    class _ConflictEc2(_FakeEc2):
+        def describe_subnets(self, **kwargs):
+            super().describe_subnets(**kwargs)
+            return {"Subnets": [{"SubnetId": "subnet-0123456789abcdef0"}]}
+
+    class _ConflictBoto3(_FakeBoto3):
+        def client(self, service, *, region_name):
+            clients = super().client(service, region_name=region_name)
+            if service == "ec2":
+                return _ConflictEc2()
+            return clients
+
+    monkeypatch.setattr(aws_surface_provider, "_boto3", lambda: _ConflictBoto3())
+
+    with pytest.raises(aws_surface_provider.CloudManifestError, match="already allocated"):
+        aws_surface_provider.collect_preflight(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4")
 
 
 def test_surface_bootstrap_logs_into_ecr_without_persisting_credentials() -> None:

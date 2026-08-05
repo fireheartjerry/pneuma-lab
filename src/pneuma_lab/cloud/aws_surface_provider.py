@@ -1341,6 +1341,10 @@ def collect_preflight(*, region: str = REGION, action_id: str | None = None) -> 
     image = images[0]
     if image.get("OwnerId") != AMI_OWNER_ID or image.get("Architecture") != AMI_ARCHITECTURE or image.get("RootDeviceName") != AMI_ROOT_DEVICE or image.get("RootDeviceType") != "ebs" or image.get("State") != "available":
         raise CloudManifestError("registered AMI owner/architecture/root-device binding failed")
+    subnet_conflicts = ec2.describe_subnets(Filters=[{"Name": "vpc-id", "Values": [VPC_ID]}, {"Name": "cidr-block", "Values": [SUBNET_CIDR]}]).get("Subnets", [])
+    if subnet_conflicts:
+        conflict_ids = sorted(str(item.get("SubnetId")) for item in subnet_conflicts if item.get("SubnetId"))
+        raise CloudManifestError(f"registered fixture subnet CIDR {SUBNET_CIDR} is already allocated in {VPC_ID}: {conflict_ids}")
     offerings = ec2.describe_instance_type_offerings(LocationType="availability-zone", Filters=[{"Name": "instance-type", "Values": [INSTANCE_TYPE]}])["InstanceTypeOfferings"]
     azs = sorted(item["Location"] for item in offerings if item.get("Location"))
     if AVAILABILITY_ZONE not in azs:
@@ -1369,6 +1373,7 @@ def collect_preflight(*, region: str = REGION, action_id: str | None = None) -> 
         "account_id": account,
         "caller_arn": identity.get("Arn"),
         "vpc_id": VPC_ID,
+        "subnet_cidr": SUBNET_CIDR,
         "availability_zone": AVAILABILITY_ZONE,
         "ami": {"id": AMI_ID, "owner_id": AMI_OWNER_ID, "architecture": AMI_ARCHITECTURE, "root_device_name": AMI_ROOT_DEVICE, "root_device_type": "ebs", "image_response_sha256": _sha(image)},
         "instance_type": INSTANCE_TYPE,
