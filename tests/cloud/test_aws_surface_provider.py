@@ -172,6 +172,33 @@ def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
     )
 
 
+def test_resource_tags_retries_narrow_aws_eventual_consistency(monkeypatch) -> None:
+    class _NotFound(Exception):
+        response = {"Error": {"Code": "InvalidSubnetID.NotFound"}}
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create_tags(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise _NotFound()
+            return {}
+
+    from types import SimpleNamespace
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
+
+    provider._resource_tags(["subnet-0123456789abcdef0"])
+
+    assert provider.ec2.calls == 2
+
+
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     class _Exceptions:
         class InvalidInstanceId(Exception):

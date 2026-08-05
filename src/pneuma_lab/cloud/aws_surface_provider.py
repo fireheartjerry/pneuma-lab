@@ -388,7 +388,24 @@ class AwsSurfaceProvider(ProductionJobProvider):
         return [{"Key": key, "Value": value} for key, value in sorted(values.items())]
 
     def _resource_tags(self, resource_ids: Sequence[str]) -> None:
-        self._call("create_tags", self.ec2.create_tags, Resources=list(resource_ids), Tags=self._tags())
+        deadline = time.time() + 30
+        eventual_codes = (
+            "InvalidGroup.NotFound",
+            "InvalidInstanceID.NotFound",
+            "InvalidNetworkInterfaceID.NotFound",
+            "InvalidRouteTableID.NotFound",
+            "InvalidSubnetID.NotFound",
+            "InvalidVpcEndpoint.NotFound",
+            "InvalidVpcEndpointId.NotFound",
+        )
+        while True:
+            try:
+                self._call("create_tags", self.ec2.create_tags, Resources=list(resource_ids), Tags=self._tags())
+                return
+            except Exception as exc:
+                if not _absent(exc, *eventual_codes) or time.time() >= deadline:
+                    raise
+                time.sleep(2)
 
     def _all_tagged(self, resource_type: str) -> list[dict[str, object]]:
         if resource_type == "instances":
