@@ -158,6 +158,8 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
             "controller_state_path": "outputs/official-study-test-001/controller.json",
         },
         "analysis_graph_ref": bindings["analysis_graph_ref"],
+        "power_report_ref": None,
+        "power_tier": None,
         "official_authorization_ref": None,
         "official_key_registry_ref": None,
         "model_server": {
@@ -211,6 +213,14 @@ def test_official_semantics_reject_fixture_adapter(tmp_path: Path) -> None:
         "byte_count": 1,
         "media_type": "application/json",
     }
+    value["power_report_ref"] = {
+        "role": "power_report",
+        "relative_path": "inputs/power-final.json",
+        "sha256": "7" * 64,
+        "byte_count": 1,
+        "media_type": "application/json",
+    }
+    value["power_tier"] = 120
     value["model_server"] = {
         **value["model_server"],
         "launch_argv": [

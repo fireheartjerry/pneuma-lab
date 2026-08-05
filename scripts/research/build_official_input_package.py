@@ -398,7 +398,15 @@ def _parse_images(values: list[str]) -> dict[str, str]:
     return result
 
 
-def build_run_spec(package: Path, inputs: dict[str, Path], *, surface: Path, source_commit: str, images: dict[str, str]) -> Path:
+def build_run_spec(
+    package: Path,
+    inputs: dict[str, Path],
+    *,
+    surface: Path,
+    source_commit: str,
+    images: dict[str, str],
+    action_id: str = "official-study-repair-candidate-20260804",
+) -> Path:
     if not CODE_SHA_RE.fullmatch(source_commit):
         raise CloudManifestError("source commit must be a full lowercase commit")
     surface_destination = _copy(surface, package / "evidence/production-surface.json")
@@ -411,7 +419,7 @@ def build_run_spec(package: Path, inputs: dict[str, Path], *, surface: Path, sou
     run_spec: dict[str, object] = {
         "record_kind": "cloud_production_run_spec",
         "schema_version": "0.1.0",
-        "action_id": "official-study-input-candidate-20260804",
+        "action_id": action_id,
         "study_id": "neurips-2026-resampling-null",
         "run_mode": "official_candidate",
         "code_commit": source_commit,
@@ -443,6 +451,8 @@ def build_run_spec(package: Path, inputs: dict[str, Path], *, surface: Path, sou
         "budget": {"max_usd": 6400.0, "max_duration_seconds": 1200000, "max_attempts": 1, "spot_only": True},
         "output": {"root": "outputs/official-study", "worker_evidence_template": "outputs/official-study/{worker_id}.evidence.json", "controller_state_path": "outputs/official-study/controller.json"},
         "analysis_graph_ref": refs["analysis"],
+        "power_report_ref": None,
+        "power_tier": None,
         "official_authorization_ref": None,
         "official_key_registry_ref": None,
         "model_server": {"endpoint": "http://model-server.internal:8000", "launch_argv": ["python3", "-m", "vllm.entrypoints.openai.api_server", "--model", "Qwen/Qwen3.6-35B-A3B-FP8", "--revision", "95a723d08a9490559dae23d0cff1d9466213d989", "--tokenizer", "Qwen/Qwen3.6-35B-A3B-FP8", "--tokenizer-revision", "95a723d08a9490559dae23d0cff1d9466213d989", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder"], "readiness_timeout_seconds": 900, "request_timeout_seconds": 900},
@@ -480,6 +490,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--surface", type=Path)
     parser.add_argument("--source-commit")
     parser.add_argument("--image", action="append", default=[])
+    parser.add_argument("--action-id", default="official-study-repair-candidate-20260804")
     args = parser.parse_args(argv)
     package = args.output_dir.resolve()
     inputs = build_inputs(package, frozen_timestamp=args.frozen_timestamp)
@@ -489,7 +500,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.surface is None or args.source_commit is None:
         parser.error("--surface and --source-commit are required unless --inputs-only is set")
     images = _parse_images(args.image)
-    spec = build_run_spec(package, inputs, surface=args.surface.resolve(), source_commit=args.source_commit, images=images)
+    spec = build_run_spec(
+        package,
+        inputs,
+        surface=args.surface.resolve(),
+        source_commit=args.source_commit,
+        images=images,
+        action_id=args.action_id,
+    )
     print(json.dumps({"run_spec": spec.as_posix(), "run_spec_sha256": _sha(spec), "input_lock_sha256": _sha(inputs["input_lock"])}, sort_keys=True))
     return 0
 

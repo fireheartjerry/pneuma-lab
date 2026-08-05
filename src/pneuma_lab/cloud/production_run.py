@@ -206,6 +206,34 @@ class ProductionRunSpec:
     def file_binding(self, field: str) -> FileBinding:
         return FileBinding.from_value(self.value[field], field=field)
 
+    def verify_power_binding(self, *, run_root: Path) -> Mapping[str, object]:
+        """Verify the exact roster-bound C120/C160 final used by an official run."""
+
+        if self.run_mode != "official":
+            raise CloudManifestError("power final binding is only valid for official run mode")
+        report = load_bound_json(self.file_binding("power_report_ref"), run_root=run_root)
+        try:
+            from pneuma_lab.resampling_null.artifacts import validate_record
+            from pneuma_lab.resampling_null.errors import RecordValidationError
+
+            validated = validate_record(report)
+        except RecordValidationError as exc:
+            raise CloudManifestError("bound power report fails the registered scientific schema") from exc
+        if validated.get("record_kind") != "resampling_power_report":
+            raise CloudManifestError("official power binding must be a resampling_power_report")
+        payload = validated.get("payload")
+        if not isinstance(payload, Mapping) or payload.get("stage") != "final":
+            raise CloudManifestError("official power binding must reference a final power report")
+        if payload.get("decision_authority") != "roster_bound_selection":
+            raise CloudManifestError("official power binding rejects synthetic or implementation-verification authority")
+        finalization = payload.get("finalization")
+        if not isinstance(finalization, Mapping) or finalization.get("decision") != "GO":
+            raise CloudManifestError("official power binding requires a roster-bound GO final")
+        selected_tier = finalization.get("selected_tier")
+        if selected_tier not in {120, 160} or selected_tier != self.value.get("power_tier"):
+            raise CloudManifestError("official power final selected tier differs from the run specification")
+        return cast(Mapping[str, object], validated)
+
     def verify_provider_binding(self, *, run_root: Path) -> Mapping[str, object]:
         """Validate the concrete provider contract bound by a production plan."""
 
@@ -265,6 +293,14 @@ class ProductionRunSpec:
             or authorization["run_spec_sha256"] != self.digest
             or authorization["input_lock_sha256"] != self.file_binding("input_lock_ref").sha256
             or authorization["task_manifest_sha256"] != self.task_manifest_ref.sha256
+            or authorization["code_commit"] != self.value["code_commit"]
+            or authorization["image_bindings"] != [
+                {"role": role, "image_digest": digest}
+                for role, digest in self.image_bindings.items()
+            ]
+            or authorization["power_report_sha256"] != self.file_binding("power_report_ref").sha256
+            or authorization["analysis_graph_sha256"] != self.file_binding("analysis_graph_ref").sha256
+            or authorization["selected_tier"] != self.value["power_tier"]
             or float(authorization["max_usd"]) != float(cast(Mapping[str, object], self.value["budget"])["max_usd"])
             or authorization["max_attempts"] != 1
             or authorization["spot_only"] is not True
@@ -274,6 +310,7 @@ class ProductionRunSpec:
                 "official authorization is not bound to this run specification, inputs, or budget"
             )
         self.verify_official_execution_surface(run_root=run_root)
+        self.verify_power_binding(run_root=run_root)
         self.verify_provider_binding(run_root=run_root)
         ledger_binding = FileBinding.from_value(
             authorization["ledger_ref"], field="official_authorization.ledger_ref"
@@ -330,8 +367,13 @@ class ProductionRunSpec:
 
         for field in ("execution_surface_ref", "input_lock_ref", "task_manifest_ref", "roster_ref", "assignment_ref", "analysis_graph_ref"):
             self.file_binding(field)
+        power_report = value.get("power_report_ref")
+        power_tier = value.get("power_tier")
         authorization = value.get("official_authorization_ref")
         if self.run_mode == "official":
+            FileBinding.from_value(power_report, field="power_report_ref")
+            if power_tier not in {120, 160}:
+                raise CloudManifestError("official run specifications must select C120 or C160")
             FileBinding.from_value(authorization, field="official_authorization_ref")
             FileBinding.from_value(
                 value.get("official_key_registry_ref"),
@@ -340,10 +382,14 @@ class ProductionRunSpec:
         elif self.run_mode == "official_candidate":
             if authorization is not None or value.get("official_key_registry_ref") is not None:
                 raise CloudManifestError("official_candidate run specifications cannot carry official authorization")
+            if power_report is not None or power_tier is not None:
+                raise CloudManifestError("official_candidate run specifications cannot carry a power selection")
         elif authorization is not None:
             raise CloudManifestError("local_mock run specifications cannot carry official authorization")
         elif value.get("official_key_registry_ref") is not None:
             raise CloudManifestError("local_mock run specifications cannot carry an official key registry")
+        elif power_report is not None or power_tier is not None:
+            raise CloudManifestError("local_mock run specifications cannot carry a power selection")
 
         topology = cast(Mapping[str, object], value.get("worker_topology"))
         if tuple(topology.get("worker_ids", ())) != WORKER_IDS:

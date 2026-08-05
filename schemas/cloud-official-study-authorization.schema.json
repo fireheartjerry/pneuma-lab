@@ -9,7 +9,8 @@
     "required": [
         "record_kind", "schema_version", "status", "scope", "action_id", "study_id",
         "run_spec_sha256", "input_lock_sha256", "task_manifest_sha256", "max_usd",
-        "max_attempts", "spot_only", "teardown_protected", "ledger_ref",
+        "code_commit", "image_bindings", "power_report_sha256", "analysis_graph_sha256",
+        "selected_tier", "max_attempts", "spot_only", "teardown_protected", "ledger_ref",
         "ledger_row_id", "ledger_row_sha256", "human_authorization"
     ],
     "properties": {
@@ -22,6 +23,17 @@
         "run_spec_sha256": {"$ref": "#/$defs/sha256"},
         "input_lock_sha256": {"$ref": "#/$defs/sha256"},
         "task_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "code_commit": {"$ref": "#/$defs/commit"},
+        "image_bindings": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/image_binding"}
+        },
+        "power_report_sha256": {"$ref": "#/$defs/sha256"},
+        "analysis_graph_sha256": {"$ref": "#/$defs/sha256"},
+        "selected_tier": {"enum": [120, 160]},
         "max_usd": {"type": "number", "exclusiveMinimum": 0},
         "max_attempts": {"const": 1},
         "spot_only": {"const": true},
@@ -34,6 +46,7 @@
     "additionalProperties": false,
     "$defs": {
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "relative_path": {
             "type": "string",
             "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
@@ -47,6 +60,15 @@
                 "sha256": {"$ref": "#/$defs/sha256"},
                 "byte_count": {"type": "integer", "minimum": 0},
                 "media_type": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        },
+        "image_binding": {
+            "type": "object",
+            "required": ["role", "image_digest"],
+            "properties": {
+                "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
+                "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
             },
             "additionalProperties": false
         },

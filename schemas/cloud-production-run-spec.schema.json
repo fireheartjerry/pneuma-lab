@@ -11,7 +11,8 @@
         "image_bindings", "execution_surface_ref", "input_lock_ref", "model",
         "benchmarks", "task_manifest_ref", "roster_ref", "assignment_ref", "rng",
         "worker_topology", "budget", "output", "analysis_graph_ref",
-        "official_authorization_ref", "official_key_registry_ref", "model_server", "benchmark_adapter"
+        "power_report_ref", "power_tier", "official_authorization_ref", "official_key_registry_ref",
+        "model_server", "benchmark_adapter"
     ],
     "properties": {
         "record_kind": {"const": "cloud_production_run_spec"},
@@ -46,6 +47,12 @@
         "budget": {"$ref": "#/$defs/budget"},
         "output": {"$ref": "#/$defs/output"},
         "analysis_graph_ref": {"$ref": "#/$defs/file_ref"},
+        "power_report_ref": {
+            "oneOf": [{"$ref": "#/$defs/file_ref"}, {"type": "null"}]
+        },
+        "power_tier": {
+            "oneOf": [{"enum": [120, 160]}, {"type": "null"}]
+        },
         "official_authorization_ref": {
             "oneOf": [{"$ref": "#/$defs/file_ref"}, {"type": "null"}]
         },
@@ -60,16 +67,34 @@
             "if": {"properties": {"run_mode": {"const": "official_candidate"}}},
             "then": {
                 "required": ["provider_binding_ref"],
-                "properties": {"official_authorization_ref": {"type": "null"}, "official_key_registry_ref": {"type": "null"}}
+                "properties": {
+                    "official_authorization_ref": {"type": "null"},
+                    "official_key_registry_ref": {"type": "null"},
+                    "power_report_ref": {"type": "null"},
+                    "power_tier": {"type": "null"}
+                }
             }
         },
         {
             "if": {"properties": {"run_mode": {"const": "official"}}},
-            "then": {"properties": {"official_authorization_ref": {"$ref": "#/$defs/file_ref"}}}
+            "then": {
+                "properties": {
+                    "official_authorization_ref": {"$ref": "#/$defs/file_ref"},
+                    "power_report_ref": {"$ref": "#/$defs/file_ref"},
+                    "power_tier": {"enum": [120, 160]}
+                }
+            }
         },
         {
             "if": {"properties": {"run_mode": {"const": "local_mock"}}},
-            "then": {"properties": {"official_authorization_ref": {"type": "null"}, "official_key_registry_ref": {"type": "null"}}}
+            "then": {
+                "properties": {
+                    "official_authorization_ref": {"type": "null"},
+                    "official_key_registry_ref": {"type": "null"},
+                    "power_report_ref": {"type": "null"},
+                    "power_tier": {"type": "null"}
+                }
+            }
         },
         {
             "if": {"properties": {"run_mode": {"const": "official"}}},
