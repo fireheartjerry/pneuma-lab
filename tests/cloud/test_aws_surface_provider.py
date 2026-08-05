@@ -199,6 +199,104 @@ def test_resource_tags_retries_narrow_aws_eventual_consistency(monkeypatch) -> N
     assert provider.ec2.calls == 2
 
 
+def test_effective_instance_readback_retries_only_ec2_not_found(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    class _NotFound(Exception):
+        response = {"Error": {"Code": "InvalidInstanceID.NotFound"}}
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def describe_instances(self, **kwargs):
+            assert kwargs == {"InstanceIds": ["i-0123456789abcdef0"]}
+            self.calls += 1
+            if self.calls == 1:
+                raise _NotFound()
+            return {"Reservations": [{"Instances": [{"InstanceId": "i-0123456789abcdef0"}]}]}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
+
+    instance = provider._read_instance("i-0123456789abcdef0")
+
+    assert instance["InstanceId"] == "i-0123456789abcdef0"
+    assert provider.ec2.calls == 2
+    assert [entry["operation"] for entry in provider.provider_responses] == [
+        "describe_instance.effective.error",
+        "describe_instance.effective",
+    ]
+
+
+def test_waiter_race_requires_explicit_terminal_confirmation() -> None:
+    from types import SimpleNamespace
+
+    class _WaiterFailure(Exception):
+        pass
+
+    class _NotFound(Exception):
+        response = {"Error": {"Code": "InvalidInstanceID.NotFound"}}
+
+    class _Ec2:
+        def get_waiter(self, name):
+            assert name == "instance_terminated"
+
+            class _Waiter:
+                def wait(self, **kwargs):
+                    assert kwargs["InstanceIds"] == ["i-0123456789abcdef0"]
+                    raise _WaiterFailure("resource disappeared after pending")
+
+            return _Waiter()
+
+        def describe_instances(self, **kwargs):
+            assert kwargs == {"InstanceIds": ["i-0123456789abcdef0"]}
+            raise _NotFound()
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+
+    provider._wait_instance_terminated("i-0123456789abcdef0")
+
+    assert [entry["operation"] for entry in provider.provider_responses] == [
+        "wait_instance_terminated.error",
+        "confirm_instance_terminated.error",
+    ]
+
+
+def test_waiter_failure_is_not_hidden_when_instance_remains_nonterminal() -> None:
+    from types import SimpleNamespace
+
+    class _WaiterFailure(Exception):
+        pass
+
+    class _Ec2:
+        def get_waiter(self, name):
+            class _Waiter:
+                def wait(self, **kwargs):
+                    raise _WaiterFailure("waiter failed")
+
+            return _Waiter()
+
+        def describe_instances(self, **kwargs):
+            return {"Reservations": [{"Instances": [{"State": {"Name": "shutting-down"}}]}]}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+
+    import pytest
+
+    with pytest.raises(_WaiterFailure, match="waiter failed"):
+        provider._wait_instance_terminated("i-0123456789abcdef0")
+
+
 def test_iam_profile_binding_retains_verified_arn_for_ec2_launch() -> None:
     from types import SimpleNamespace
 

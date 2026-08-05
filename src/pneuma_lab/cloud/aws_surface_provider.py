@@ -47,6 +47,8 @@ MANAGED_TAG = "production-surface-e2e-v2"
 ACTION_ID_RE = re.compile(r"^FIXTURE-NONSCI-[0-9]{8}-v2-[a-z0-9]{8}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _ID_RE = re.compile(r"^i-[0-9a-f]+$")
+INSTANCE_READBACK_TIMEOUT_SECONDS = 60
+INSTANCE_READBACK_RETRY_SECONDS = 2
 
 
 def _boto3():
@@ -673,11 +675,22 @@ class AwsSurfaceProvider(ProductionJobProvider):
             raise CloudManifestError("external fixture watchdog exited before instance launch")
 
     def _read_instance(self, instance_id: str) -> Mapping[str, object]:
-        response = self._call("describe_instance.effective", self.ec2.describe_instances, InstanceIds=[instance_id])
-        instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
-        if len(instances) != 1:
-            raise CloudManifestError("effective launch readback did not return exactly one instance")
-        return cast(Mapping[str, object], instances[0])
+        deadline = time.time() + INSTANCE_READBACK_TIMEOUT_SECONDS
+        while True:
+            try:
+                response = self._call("describe_instance.effective", self.ec2.describe_instances, InstanceIds=[instance_id])
+            except Exception as exc:
+                # RunInstances is not replayable.  EC2 can briefly return
+                # InvalidInstanceID.NotFound immediately after a successful
+                # submit, so only this exact provider condition is retried.
+                if not _absent(exc, "InvalidInstanceID.NotFound") or time.time() >= deadline:
+                    raise
+                time.sleep(INSTANCE_READBACK_RETRY_SECONDS)
+                continue
+            instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
+            if len(instances) != 1:
+                raise CloudManifestError("effective launch readback did not return exactly one instance")
+            return cast(Mapping[str, object], instances[0])
 
     def _verify_effective_launch(self, instance_id: str) -> None:
         instance = self._read_instance(instance_id)
@@ -896,6 +909,46 @@ class AwsSurfaceProvider(ProductionJobProvider):
             raise
         return cast(Sequence[Mapping[str, object]], response.get("NetworkInterfaces", []))
 
+    def _confirm_instance_terminal(self, instance_id: str) -> bool:
+        """Confirm that an instance is absent or in EC2's terminal state.
+
+        The EC2 waiter can observe ``pending`` and then lose the resource while
+        the delete propagates.  A second, explicit read is required before
+        treating that narrow race as successful cleanup; other observation
+        failures remain cleanup failures.
+        """
+
+        try:
+            response = self._call("confirm_instance_terminated", self.ec2.describe_instances, InstanceIds=[instance_id])
+        except Exception as exc:
+            if _absent(exc, "InvalidInstanceID.NotFound"):
+                return True
+            raise
+        instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
+        if not instances:
+            return True
+        return all(instance.get("State", {}).get("Name") == "terminated" for instance in instances)
+
+    def _wait_instance_terminated(self, instance_id: str) -> None:
+        try:
+            self._call(
+                "wait_instance_terminated",
+                self.ec2.get_waiter("instance_terminated").wait,
+                InstanceIds=[instance_id],
+                WaiterConfig={"Delay": 5, "MaxAttempts": 36},
+            )
+        except Exception as exc:
+            if _absent(exc, "InvalidInstanceID.NotFound"):
+                return
+            try:
+                if self._confirm_instance_terminal(instance_id):
+                    return
+            except Exception:
+                # Preserve the original waiter failure.  The confirmation is
+                # diagnostic unless it proves terminal absence exactly.
+                pass
+            raise
+
     def _stop_watchdog(self) -> None:
         if self.watchdog is None:
             return
@@ -985,7 +1038,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             try:
                 self._call("describe_instance.before_terminate", self.ec2.describe_instances, InstanceIds=[instance_id])
                 self._call("terminate_instances", self.ec2.terminate_instances, InstanceIds=[instance_id])
-                self._call("wait_instance_terminated", self.ec2.get_waiter("instance_terminated").wait, InstanceIds=[instance_id], WaiterConfig={"Delay": 5, "MaxAttempts": 36})
+                self._wait_instance_terminated(instance_id)
             except Exception as exc:
                 if not _absent(exc, "InvalidInstanceID.NotFound"):
                     cleanup_error = exc
