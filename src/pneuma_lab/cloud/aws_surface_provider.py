@@ -343,6 +343,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.watchdog_source_sha256: str | None = None
         self.role_name = _name(f"pneuma-surface-v2-role-{config.action_id}")
         self.profile_name = _name(f"pneuma-surface-v2-profile-{config.action_id}")
+        self.profile_arn: str | None = None
         self.policy_name = _name(f"pneuma-surface-v2-ecr-{config.action_id}")
         self.document_name = _name(f"pneuma-surface-v2-status-{config.action_id}")
         self.document_version = "1"
@@ -615,13 +616,20 @@ class AwsSurfaceProvider(ProductionJobProvider):
         trust = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]}
         self._call("create_role", self.iam.create_role, RoleName=self.role_name, AssumeRolePolicyDocument=_json(trust), Description="Pneuma FIXTURE-NONSCI v2 role; no scientific inputs")
         self._call("put_role_policy", self.iam.put_role_policy, RoleName=self.role_name, PolicyName=self.policy_name, PolicyDocument=_json(self._iam_policy()))
-        self._call("create_instance_profile", self.iam.create_instance_profile, InstanceProfileName=self.profile_name)
+        created = self._call("create_instance_profile", self.iam.create_instance_profile, InstanceProfileName=self.profile_name)
+        created_profile = created.get("InstanceProfile", {})
+        profile_arn = created_profile.get("Arn")
+        if not isinstance(profile_arn, str) or not profile_arn.endswith(f"instance-profile/{self.profile_name}"):
+            raise CloudManifestError("IAM instance profile ARN did not bind the exact action profile")
+        self.profile_arn = profile_arn
         self._call("add_role_to_instance_profile", self.iam.add_role_to_instance_profile, InstanceProfileName=self.profile_name, RoleName=self.role_name)
         self._call("tag_role", self.iam.tag_role, RoleName=self.role_name, Tags=self._tags())
         self._call("tag_instance_profile", self.iam.tag_instance_profile, InstanceProfileName=self.profile_name, Tags=self._tags())
         deadline = time.time() + 60
         while time.time() < deadline:
             profile = self._call("get_instance_profile", self.iam.get_instance_profile, InstanceProfileName=self.profile_name)["InstanceProfile"]
+            if profile.get("Arn") != self.profile_arn:
+                raise CloudManifestError("IAM instance profile readback changed its immutable ARN")
             roles = profile.get("Roles", [])
             if any(item.get("RoleName") == self.role_name for item in roles):
                 return
@@ -720,6 +728,11 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if set(self.endpoint_ids) != set(INTERFACE_SERVICES):
             raise CloudManifestError("restart reconciliation found an incomplete interface endpoint set")
         self._capture_endpoint_bindings()
+        profile = self._call("get_instance_profile.restart", self.iam.get_instance_profile, InstanceProfileName=self.profile_name).get("InstanceProfile", {})
+        profile_arn = profile.get("Arn")
+        if not isinstance(profile_arn, str) or not profile_arn.endswith(f"instance-profile/{self.profile_name}"):
+            raise CloudManifestError("restart reconciliation found an invalid IAM instance profile ARN")
+        self.profile_arn = profile_arn
         self.document_sha256 = _sha_bytes(_canonical(_fixed_ssm_document()))
         described = self._call("describe_ssm_document.restart", self.ssm.describe_document, Name=self.document_name, DocumentVersion=self.document_version)
         metadata = described.get("Document", {})
@@ -746,13 +759,15 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._start_watchdog(deadline_epoch=deadline)
         user_data = render_surface_user_data(self.config, endpoint_host_bindings=self.endpoint_host_bindings)
         tags = self._tags()
+        if self.profile_arn is None:
+            raise CloudManifestError("verified IAM instance profile ARN is missing before launch")
         run_kwargs: dict[str, object] = {
             "ImageId": self.config.ami_id,
             "InstanceType": INSTANCE_TYPE,
             "MinCount": 1,
             "MaxCount": 1,
             "ClientToken": client_token,
-            "IamInstanceProfile": {"Name": self.profile_name},
+            "IamInstanceProfile": {"Arn": self.profile_arn},
             "NetworkInterfaces": [{"DeviceIndex": 0, "SubnetId": self.subnet_id, "Groups": [self.instance_security_group_id], "AssociatePublicIpAddress": False, "DeleteOnTermination": True}],
             "BlockDeviceMappings": [{"DeviceName": AMI_ROOT_DEVICE, "Ebs": {"VolumeSize": 30, "VolumeType": "gp3", "Encrypted": True, "DeleteOnTermination": True}}],
             "MetadataOptions": {"HttpTokens": "required", "HttpEndpoint": "enabled", "HttpPutResponseHopLimit": 1},
@@ -1005,6 +1020,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             "security_group_ids": [value for value in (self.instance_security_group_id, self.endpoint_security_group_id) if value],
             "iam_role": self.role_name,
             "instance_profile": self.profile_name,
+            "instance_profile_arn": self.profile_arn,
             "ssm_document": {"name": self.document_name, "version": self.document_version, "sha256": self.document_sha256, "provider_hash": self.document_provider_hash},
             "watchdog": {"pid": self.watchdog_pid, "source_sha256": self.watchdog_source_sha256, "deadline_epoch": self.external_deadline_epoch},
             "resource_ids": {"instances": [instance_id] if instance_id else [], "volumes": list(self.instance_volume_ids), "network_interfaces": list(dict.fromkeys(self.instance_network_interface_ids + self.endpoint_network_interface_ids))},

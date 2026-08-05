@@ -199,6 +199,53 @@ def test_resource_tags_retries_narrow_aws_eventual_consistency(monkeypatch) -> N
     assert provider.ec2.calls == 2
 
 
+def test_iam_profile_binding_retains_verified_arn_for_ec2_launch() -> None:
+    from types import SimpleNamespace
+
+    profile_name = "pneuma-surface-v2-profile-FIXTURE-NONSCI-20260805-v2-a1b2c3d4"
+    role_name = "pneuma-surface-v2-role-FIXTURE-NONSCI-20260805-v2-a1b2c3d4"
+    profile_arn = f"arn:aws:iam::123456789012:instance-profile/{profile_name}"
+
+    class _Iam:
+        def create_role(self, **kwargs):
+            return {}
+
+        def put_role_policy(self, **kwargs):
+            return {}
+
+        def create_instance_profile(self, **kwargs):
+            return {"InstanceProfile": {"Arn": profile_arn}}
+
+        def add_role_to_instance_profile(self, **kwargs):
+            return {}
+
+        def tag_role(self, **kwargs):
+            return {}
+
+        def tag_instance_profile(self, **kwargs):
+            return {}
+
+        def get_instance_profile(self, **kwargs):
+            return {"InstanceProfile": {"Arn": profile_arn, "Roles": [{"RoleName": role_name}]}}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.iam = _Iam()
+    provider.provider_responses = []
+    provider.profile_arn = None
+    provider.profile_name = profile_name
+    provider.role_name = role_name
+    provider.policy_name = "pneuma-surface-v2-ecr-FIXTURE-NONSCI-20260805-v2-a1b2c3d4"
+    provider.config = SimpleNamespace(
+        action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4",
+        evidence_dir=None,
+        image_refs={"controller": "123456789012.dkr.ecr.us-east-1.amazonaws.com/controller@sha256:" + "1" * 64},
+    )
+
+    provider._create_iam()
+
+    assert provider.profile_arn == profile_arn
+
+
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     class _Exceptions:
         class InvalidInstanceId(Exception):
