@@ -2,17 +2,29 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/cloud-production-image-receipt.schema.json",
     "title": "Production Image Receipt",
-    "description": "Immutable production role image, SBOM, provenance, and bounded-surface binding. It is not qualification evidence and not scientific evidence.",
+    "description": "Immutable production role image with separately recorded OCI identity, SBOM, BuildKit provenance, and signed digest approval. It is non-scientific evidence and never authorizes a study.",
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
-    "x-pneuma-version": "0.1.0",
-    "required": ["record_kind", "schema_version", "evidence_class", "role", "source_commit", "dockerfile", "base_image", "image_ref", "image_digest", "sbom", "provenance", "build", "surface_e2e_status"],
+    "x-pneuma-version": "0.2.0",
+    "required": ["record_kind", "schema_version", "evidence_class", "role", "source_commit", "source_closure", "dockerfile", "base_image", "image_ref", "image_digest", "oci", "buildx_metadata_sha256", "sbom", "provenance", "digest_approval", "build", "surface_e2e_status"],
     "properties": {
         "record_kind": {"const": "cloud_production_image_receipt"},
-        "schema_version": {"const": "0.1.0"},
+        "schema_version": {"const": "0.2.0"},
         "evidence_class": {"const": "production_surface_non_scientific"},
         "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
         "source_commit": {"$ref": "#/$defs/commit"},
+        "source_closure": {
+            "type": "object",
+            "required": ["commit", "tree_object_id", "manifest_sha256", "file_count", "path"],
+            "properties": {
+                "commit": {"$ref": "#/$defs/commit"},
+                "tree_object_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                "manifest_sha256": {"$ref": "#/$defs/sha256"},
+                "file_count": {"type": "integer", "minimum": 1},
+                "path": {"const": "source-closure.json"}
+            },
+            "additionalProperties": false
+        },
         "dockerfile": {"type": "string", "pattern": "^infra/docker/(controller|model-server|benchmark-worker)/Dockerfile$"},
         "base_image": {
             "type": "object",
@@ -22,6 +34,26 @@
         },
         "image_ref": {"type": "string", "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/pneuma-official-production-(controller|model-server|benchmark-worker)@sha256:[0-9a-f]{64}$"},
         "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "oci": {
+            "type": "object",
+            "required": ["root_index_digest", "root_index_media_type", "child_digest", "child_media_type", "child_os", "child_architecture", "root_to_child_verified", "attestation_descriptor_digest", "attestation_media_type", "attestation_manifest_sha256", "in_toto_statement_digest", "in_toto_statement_media_type"],
+            "properties": {
+                "root_index_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "root_index_media_type": {"type": "string", "minLength": 1},
+                "child_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "child_media_type": {"type": "string", "minLength": 1},
+                "child_os": {"const": "linux"},
+                "child_architecture": {"const": "amd64"},
+                "root_to_child_verified": {"const": true},
+                "attestation_descriptor_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "attestation_media_type": {"type": "string", "minLength": 1},
+                "attestation_manifest_sha256": {"$ref": "#/$defs/sha256"},
+                "in_toto_statement_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "in_toto_statement_media_type": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        },
+        "buildx_metadata_sha256": {"$ref": "#/$defs/sha256"},
         "sbom": {
             "type": "object",
             "required": ["format", "tool", "version", "release_url", "release_tar_sha256", "sha256", "byte_count"],
@@ -38,12 +70,30 @@
         },
         "provenance": {
             "type": "object",
-            "required": ["attestation_format", "sha256", "builder", "source_uri"],
+            "required": ["attestation_format", "descriptor_digest", "manifest_sha256", "in_toto_statement_digest", "builder", "source_uri"],
             "properties": {
                 "attestation_format": {"const": "buildkit-in-toto-provenance"},
-                "sha256": {"$ref": "#/$defs/sha256"},
+                "descriptor_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "manifest_sha256": {"$ref": "#/$defs/sha256"},
+                "in_toto_statement_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
                 "builder": {"const": "docker-buildx-provenance-mode-max"},
-                "source_uri": {"type": "string", "minLength": 1}
+                "source_uri": {"type": "string", "pattern": "^git:[0-9a-f]{40}$"}
+            },
+            "additionalProperties": false
+        },
+        "digest_approval": {
+            "type": "object",
+            "required": ["record_sha256", "signed_payload_sha256", "signature_ed25519_b64", "signer"],
+            "properties": {
+                "record_sha256": {"$ref": "#/$defs/sha256"},
+                "signed_payload_sha256": {"$ref": "#/$defs/sha256"},
+                "signature_ed25519_b64": {"type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$"},
+                "signer": {
+                    "type": "object",
+                    "required": ["provider", "key_id", "algorithm"],
+                    "properties": {"provider": {"const": "aws-kms"}, "key_id": {"type": "string", "minLength": 1}, "algorithm": {"const": "ED25519_SHA_512"}},
+                    "additionalProperties": false
+                }
             },
             "additionalProperties": false
         },

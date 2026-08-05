@@ -5,11 +5,11 @@
     "description": "Concrete provider/deployment binding for the real role surface. It is not an execution authorization.",
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": ["record_kind", "schema_version", "provider", "region", "production_deployment", "bounded_surface_deployment", "forbidden_actions", "teardown", "image_registry"],
     "properties": {
         "record_kind": {"const": "cloud_production_provider_binding"},
-        "schema_version": {"const": "0.1.0"},
+        "schema_version": {"const": "0.2.0"},
         "provider": {"const": "aws"},
         "region": {"const": "us-east-1"},
         "production_deployment": {"$ref": "#/$defs/production"},
@@ -54,16 +54,26 @@
         },
         "surface": {
             "type": "object",
-            "required": ["deployment_id", "instance_type", "capacity_type", "max_duration_seconds", "max_usd", "network", "metadata_options", "role_sandbox"],
+            "required": ["deployment_id", "instance_type", "capacity_type", "max_duration_seconds", "max_usd", "network", "metadata_options", "role_sandbox", "vpc_id", "availability_zone", "subnet_cidr", "ami_id", "ami_owner_id", "architecture", "root_device_type", "approved_endpoints", "custom_ssm_document", "external_watchdog"],
             "properties": {
-                "deployment_id": {"const": "aws-ec2-ssm-cpu-production-role-surface-v1"},
+                "deployment_id": {"const": "aws-ec2-ssm-cpu-production-role-surface-v2"},
                 "instance_type": {"const": "m7i.large"},
                 "capacity_type": {"const": "on-demand"},
                 "max_duration_seconds": {"const": 900},
                 "max_usd": {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
-                "network": {"const": "no-inbound-egress-ssm-ecr-only"},
+                "network": {"const": "private-action-subnet-approved-endpoints-only"},
                 "metadata_options": {"const": "IMDSv2-required"},
-                "role_sandbox": {"const": "network-none-read-only-cap-drop-all-no-new-privileges"}
+                "role_sandbox": {"const": "network-none-read-only-cap-drop-all-no-new-privileges"},
+                "vpc_id": {"const": "vpc-0577decd080525e86"},
+                "availability_zone": {"const": "us-east-1a"},
+                "subnet_cidr": {"const": "10.42.2.0/24"},
+                "ami_id": {"const": "ami-0b416d150bdde5ea2"},
+                "ami_owner_id": {"const": "591542846629"},
+                "architecture": {"const": "x86_64"},
+                "root_device_type": {"const": "ebs"},
+                "approved_endpoints": {"type": "array", "items": {"enum": ["ecr.api", "ecr.dkr", "ssm", "ssmmessages", "ec2messages", "s3"]}, "minItems": 6, "maxItems": 6, "uniqueItems": true},
+                "custom_ssm_document": {"type": "object", "required": ["contract", "version", "caller_parameters"], "properties": {"contract": {"const": "fixed-status-read-v1"}, "version": {"const": "1"}, "caller_parameters": {"const": false}}, "additionalProperties": false},
+                "external_watchdog": {"const": true}
             },
             "additionalProperties": false
         }

@@ -1,22 +1,27 @@
-"""Concrete AWS provider for the bounded production-surface E2E.
+"""Fail-closed AWS provider for one bounded non-scientific surface fixture.
 
-The provider deliberately provisions a small CPU-only EC2 host for the role
-handshake.  It never receives a run specification, model credentials, task
-payloads, or benchmark inputs, and the user-data contract rejects all
-scientific actions.  The official two-L40S Batch deployment remains a separate
-provider action gated by the signed official run specification.
+This module is deliberately narrower than the official Batch provider.  It
+creates one tagged, private EC2 host, pulls only immutable role images, runs
+the inert ``--protocol e2e`` handshake, and tears down every action-owned
+resource.  It never accepts a model, benchmark, roster, assignment, packet,
+or official run specification.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 import base64
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
+import os
+from pathlib import Path
 import re
+import signal
+import subprocess
 import time
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from .errors import CloudManifestError
@@ -24,11 +29,23 @@ from .production_controller import ProductionJobProvider, ProductionSubmission
 from .production_run import canonical_bytes
 
 
-AMI_ID = "ami-08bc385c9fc5afc94"
+REGION = "us-east-1"
+VPC_ID = "vpc-0577decd080525e86"
+AVAILABILITY_ZONE = "us-east-1a"
+AMI_ID = "ami-0b416d150bdde5ea2"
+AMI_OWNER_ID = "591542846629"
+AMI_ARCHITECTURE = "x86_64"
+AMI_ROOT_DEVICE = "/dev/xvda"
 INSTANCE_TYPE = "m7i.large"
+SUBNET_CIDR = "10.42.2.0/24"
 MAX_DURATION_SECONDS = 900
 MAX_USD = Decimal("3.00")
-_TAG_KEY = "PneumaSurfaceAction"
+INTERFACE_SERVICES = ("ecr.api", "ecr.dkr", "ssm", "ssmmessages", "ec2messages")
+ACTION_TAG = "PneumaSurfaceAction"
+MANAGED_TAG = "production-surface-e2e-v2"
+ACTION_ID_RE = re.compile(r"^FIXTURE-NONSCI-[0-9]{8}-v2-[a-z0-9]{8}$")
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ID_RE = re.compile(r"^i-[0-9a-f]+$")
 
 
 def _boto3():
@@ -43,35 +60,46 @@ def _json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+def _jsonable(value: object) -> object:
+    if isinstance(value, bytes):
+        return {"__bytes_hex__": value.hex()}
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(nested) for key, nested in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(nested) for nested in value]
+    return value
+
+
+def _canonical(value: object) -> bytes:
+    return canonical_bytes(value)
+
+
+def _sha_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _sha(value: object) -> str:
-    return hashlib.sha256(canonical_bytes(value)).hexdigest()
-
-
-def _is_iam_profile_propagation_error(exc: Exception) -> bool:
-    """Recognize the transient EC2/IAM eventual-consistency failure."""
-
-    response = getattr(exc, "response", {})
-    if not isinstance(response, Mapping):
-        return False
-    error = response.get("Error", {})
-    if not isinstance(error, Mapping):
-        return False
-    return error.get("Code") == "InvalidParameterValue" and "iamInstanceProfile" in str(error.get("Message", ""))
-
-
-def _is_absent_instance_error(exc: Exception) -> bool:
-    """Treat a previously terminated instance as an idempotent cleanup state."""
-
-    response = getattr(exc, "response", {})
-    if not isinstance(response, Mapping):
-        return False
-    error = response.get("Error", {})
-    return isinstance(error, Mapping) and error.get("Code") == "InvalidInstanceID.NotFound"
+    return _sha_bytes(_canonical(value))
 
 
 def _name(value: str, *, max_length: int = 63) -> str:
     safe = re.sub(r"[^A-Za-z0-9+=,.@_-]", "-", value)
     return safe[:max_length].rstrip("-") or "pneuma-surface"
+
+
+def _absent(exc: Exception, *codes: str) -> bool:
+    response = getattr(exc, "response", {})
+    error = response.get("Error", {}) if isinstance(response, Mapping) else {}
+    return isinstance(error, Mapping) and error.get("Code") in set(codes)
+
+
+def validate_action_id(action_id: str) -> None:
+    if not ACTION_ID_RE.fullmatch(action_id):
+        raise CloudManifestError(
+            "action_id must use the immutable FIXTURE-NONSCI-YYYYMMDD-v2-xxxxxxxx namespace"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,14 +113,57 @@ class AwsSurfaceConfig:
     image_digests: Mapping[str, str]
     provider_binding_sha256: str
     source_commit: str
+    evidence_dir: Path | None = None
+    vpc_id: str = VPC_ID
+    availability_zone: str = AVAILABILITY_ZONE
+    subnet_cidr: str = SUBNET_CIDR
+    ami_id: str = AMI_ID
+
+
+def _fixed_ssm_document() -> dict[str, object]:
+    return {
+        "schemaVersion": "2.2",
+        "description": "Pneuma FIXTURE-NONSCI v2 fixed status observation; no caller parameters",
+        "parameters": {},
+        "mainSteps": [
+            {
+                "action": "aws:runShellScript",
+                "name": "readFixedSurfaceStatus",
+                "inputs": {
+                    "runCommand": [
+                        "set -eu",
+                        "if test -f /var/lib/pneuma-surface/status.json; then /usr/bin/cat /var/lib/pneuma-surface/status.json; else /usr/bin/printf '%s\\n' '{\"terminal\":false,\"state\":\"WAITING\"}'; fi",
+                    ]
+                },
+            }
+        ],
+    }
 
 
 def render_surface_user_data(config: AwsSurfaceConfig) -> str:
-    """Render a no-model/no-benchmark role handshake for Amazon Linux 2023."""
+    """Render bootstrap that cannot install packages or receive science inputs."""
 
     refs = {role: config.image_refs[role] for role in ("controller", "model-server", "benchmark-worker")}
-    encoded_refs = base64.b64encode(canonical_bytes(refs)).decode("ascii")
+    encoded_refs = base64.b64encode(_canonical(refs)).decode("ascii")
     registry = next(iter(refs.values())).split("/", 1)[0]
+    initial_status = {
+        "record_kind": "cloud_production_surface_provider_status",
+        "schema_version": "0.2.0",
+        "action_id": config.action_id,
+        "evidence_class": "production_surface_non_scientific",
+        "fixture_mode": "FIXTURE-NONSCI",
+        "authority": "none",
+        "terminal": False,
+        "state": "BOOTSTRAPPING",
+        "model_download": False,
+        "benchmark_execution": False,
+        "official_study": False,
+        "canonical_p0_grid": False,
+        "roster_ceremony": False,
+        "unblind": False,
+        "analysis": False,
+    }
+    initial_json = _json(initial_status)
     return f"""#!/bin/bash
 set -euo pipefail
 export HOME=/root
@@ -104,17 +175,21 @@ chmod 700 "$ROOT"
 echo {config.harness_bytes_b64!r} | base64 -d > "$ROOT/harness.json"
 chmod 644 "$ROOT/harness.json"
 cat > "$ROOT/status.json" <<'JSON'
-{{"record_kind":"cloud_production_surface_provider_status","schema_version":"0.1.0","action_id":{json.dumps(config.action_id)},"terminal":false,"state":"BOOTSTRAPPING","model_download":false,"benchmark_execution":false,"official_study":false,"canonical_p0_grid":false,"roster_ceremony":false,"unblind":false,"analysis":false}}
+{initial_json}
 JSON
 
-dnf install -y docker
-command -v aws >/dev/null 2>&1 || {{ echo 'Amazon Linux AWS CLI is unavailable' >&2; exit 21; }}
+# The bound ECS image must already contain Docker, the AWS CLI, Python, and
+# the SSM agent.  Internet package installation is forbidden in this lane.
+command -v docker >/dev/null 2>&1
+command -v aws >/dev/null 2>&1
+command -v python3 >/dev/null 2>&1
 systemctl enable --now docker
 echo {encoded_refs!r} | base64 -d > "$ROOT/image-refs.json"
 aws ecr get-login-password --region {config.region!r} | docker login --username AWS --password-stdin "$REGISTRY"
 for role in controller model-server benchmark-worker; do
   image=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$ROOT/image-refs.json" "$role")
   docker pull "$image"
+  docker image inspect "$image" --format '{{{{json .RepoDigests}}}}' | grep -F "$image" >/dev/null
 done
 
 run_role() {{
@@ -126,7 +201,7 @@ run_role() {{
   if [[ "$role" == "benchmark-worker" ]]; then input_arg=(--volume "$ROOT/roles/model-server.json:/work/predecessor.json:ro"); fi
   local role_input=()
   if [[ "$role" != "controller" ]]; then role_input=(--input /work/predecessor.json); fi
-  timeout 300 docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \\
+  timeout 300 docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --pids-limit 128 --security-opt no-new-privileges --user 65532:65532 \\
     --volume "$ROOT/harness.json:/work/harness.json:ro" "${{input_arg[@]}}" "$image" \\
     --protocol e2e --harness /work/harness.json --harness-sha256 {config.harness_sha256!r} "${{role_input[@]}}" > "$ROOT/roles/$role.json"
   python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$ROOT/roles/$role.json"
@@ -137,7 +212,7 @@ for role in controller model-server benchmark-worker; do run_role "$role"; done
 for role in controller model-server benchmark-worker; do
   image=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$ROOT/image-refs.json" "$role")
   set +e
-  timeout 120 docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \\
+  timeout 120 docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --pids-limit 128 --security-opt no-new-privileges --user 65532:65532 \\
     --volume "$ROOT/harness.json:/work/harness.json:ro" "$image" \\
     --protocol e2e --harness /work/harness.json --harness-sha256 {'0' * 64} > "$ROOT/roles/$role-wrong-hash.json"
   rc=$?
@@ -160,8 +235,11 @@ for role in ("controller", "model-server", "benchmark-worker"):
     failure_receipts[role] = {{"sha256": hashlib.sha256(wrong).hexdigest(), "record": json.loads(wrong.decode())}}
 status = {{
     "record_kind": "cloud_production_surface_provider_status",
-    "schema_version": "0.1.0",
+    "schema_version": "0.2.0",
     "action_id": {json.dumps(config.action_id)},
+    "evidence_class": "production_surface_non_scientific",
+    "fixture_mode": "FIXTURE-NONSCI",
+    "authority": "none",
     "terminal": True,
     "state": "SUCCEEDED",
     "model_download": False,
@@ -171,6 +249,9 @@ status = {{
     "roster_ceremony": False,
     "unblind": False,
     "analysis": False,
+    "network_none": True,
+    "credential_free_containers": True,
+    "docker_socket_absent": True,
     "receipts": receipts,
     "failure_receipts": failure_receipts,
 }}
@@ -181,157 +262,394 @@ chmod 644 "$ROOT/status.json" "$ROOT"/roles/*.json
 
 
 class AwsSurfaceProvider(ProductionJobProvider):
-    """Idempotent EC2/SSM implementation of the durable provider protocol."""
+    """Concrete one-attempt EC2/SSM v2 provider with explicit cleanup."""
 
     def __init__(self, config: AwsSurfaceConfig) -> None:
-        if config.region != "us-east-1":
-            raise CloudManifestError("AWS surface provider is registered only in us-east-1")
+        validate_action_id(config.action_id)
+        if (config.region, config.vpc_id, config.availability_zone, config.subnet_cidr, config.ami_id) != (REGION, VPC_ID, AVAILABILITY_ZONE, SUBNET_CIDR, AMI_ID):
+            raise CloudManifestError("surface provider binding differs from the registered private action deployment")
+        if not re.fullmatch(r"[0-9a-f]{40}", config.source_commit):
+            raise CloudManifestError("surface source_commit must be one full lowercase commit")
+        if not _DIGEST_RE.fullmatch("sha256:" + config.input_lock_sha256):
+            raise CloudManifestError("surface input lock digest is invalid")
+        if set(config.image_refs) != {"controller", "model-server", "benchmark-worker"}:
+            raise CloudManifestError("surface image refs must cover exactly the three roles")
+        if set(config.image_digests) != set(config.image_refs) or any(
+            not _DIGEST_RE.fullmatch(str(value)) for value in config.image_digests.values()
+        ):
+            raise CloudManifestError("surface image bindings must use immutable OCI digests")
+        account_ids = set()
+        for role, image_ref in config.image_refs.items():
+            match = re.fullmatch(r"([0-9]{12})\.dkr\.ecr\.us-east-1\.amazonaws\.com/pneuma-official-production-(controller|model-server|benchmark-worker)@(sha256:[0-9a-f]{64})", image_ref)
+            if match is None or match.group(2) != role or match.group(3) != config.image_digests[role]:
+                raise CloudManifestError("surface image refs must bind each exact production role to its digest")
+            account_ids.add(match.group(1))
+        if len(account_ids) != 1:
+            raise CloudManifestError("surface images must belong to one exact AWS account")
         self.config = config
         boto3 = _boto3()
         self.ec2 = boto3.client("ec2", region_name=config.region)
         self.iam = boto3.client("iam", region_name=config.region)
         self.ssm = boto3.client("ssm", region_name=config.region)
-        self.ecr = boto3.client("ecr", region_name=config.region)
+        self.sts = boto3.client("sts", region_name=config.region)
         self.submission: ProductionSubmission | None = None
         self.instance_id: str | None = None
-        self.security_group_id: str | None = None
-        self.role_name = _name(f"pneuma-surface-role-{config.action_id}")
-        self.profile_name = _name(f"pneuma-surface-profile-{config.action_id}")
-        self.policy_name = _name(f"pneuma-surface-ecr-{config.action_id}")
+        self.subnet_id: str | None = None
+        self.route_table_id: str | None = None
+        self.route_association_id: str | None = None
+        self.instance_security_group_id: str | None = None
+        self.endpoint_security_group_id: str | None = None
+        self.endpoint_ids: dict[str, str] = {}
+        self.s3_endpoint_id: str | None = None
+        self.instance_volume_ids: list[str] = []
+        self.instance_network_interface_ids: list[str] = []
         self.command_id: str | None = None
         self.last_status: Mapping[str, Any] | None = None
         self.last_teardown: Mapping[str, Any] | None = None
+        self.provider_responses: list[dict[str, object]] = []
+        self.attempt_closed = False
+        self.launch_epoch: float | None = None
+        self.external_deadline_epoch: float | None = None
+        self.ssm_online_seen = False
+        self.watchdog: subprocess.Popen[bytes] | None = None
+        self.watchdog_pid: int | None = None
+        self.watchdog_source_sha256: str | None = None
+        self.role_name = _name(f"pneuma-surface-v2-role-{config.action_id}")
+        self.profile_name = _name(f"pneuma-surface-v2-profile-{config.action_id}")
+        self.policy_name = _name(f"pneuma-surface-v2-ecr-{config.action_id}")
+        self.document_name = _name(f"pneuma-surface-v2-status-{config.action_id}")
+        self.document_version = "1"
+        self.document_sha256: str | None = None
+        if config.evidence_dir is not None:
+            config.evidence_dir.mkdir(parents=True, exist_ok=True)
 
-    def _find_existing(self) -> str | None:
-        response = self.ec2.describe_instances(
-            Filters=[
-                {"Name": f"tag:{_TAG_KEY}", "Values": [self.config.action_id]},
-                {"Name": "instance-state-name", "Values": ["pending", "running", "stopping", "stopped"]},
-            ]
-        )
-        instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
-        if len(instances) > 1:
-            raise CloudManifestError("multiple active surface instances share one action tag")
-        return instances[0]["InstanceId"] if instances else None
+    def _record(self, operation: str, response: object) -> object:
+        payload = {
+            "recorded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "operation": operation,
+            "response": _jsonable(response),
+        }
+        raw = _canonical(payload)
+        digest = _sha_bytes(raw)
+        entry: dict[str, object] = {"operation": operation, "sha256": digest, "recorded_at": payload["recorded_at"]}
+        if self.config.evidence_dir is not None:
+            index = len(self.provider_responses)
+            path = self.config.evidence_dir / "provider-raw" / f"{index:04d}-{_name(operation, max_length=48)}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            descriptor = os.open(path, flags, 0o644)
+            try:
+                view = memoryview(raw)
+                while view:
+                    view = view[os.write(descriptor, view):]
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            entry["path"] = path.name if path.parent == self.config.evidence_dir else path.relative_to(self.config.evidence_dir).as_posix()
+        self.provider_responses.append(entry)
+        return response
 
-    def _default_network(self) -> tuple[str, str]:
-        vpcs = self.ec2.describe_vpcs(Filters=[{"Name": "is-default", "Values": ["true"]}])["Vpcs"]
-        if not vpcs:
-            raise CloudManifestError("no default VPC is available for bounded surface E2E")
-        vpc_id = vpcs[0]["VpcId"]
-        subnets = self.ec2.describe_subnets(
-            Filters=[{"Name": "vpc-id", "Values": [vpc_id]}, {"Name": "state", "Values": ["available"]}]
-        )["Subnets"]
-        if not subnets:
-            raise CloudManifestError("no available subnet is present in the default VPC")
-        return vpc_id, sorted(subnets, key=lambda item: item["SubnetId"])[0]["SubnetId"]
-
-    def _security_group(self, vpc_id: str) -> str:
-        group = self.ec2.create_security_group(
-            GroupName=_name(f"pneuma-surface-{self.config.action_id}"),
-            Description="Pneuma bounded production surface; no inbound traffic",
-            VpcId=vpc_id,
-        )
-        group_id = cast(str, group["GroupId"])
-        self.ec2.create_tags(Resources=[group_id], Tags=[{"Key": _TAG_KEY, "Value": self.config.action_id}, {"Key": "PneumaManaged", "Value": "production-surface-e2e"}])
+    def _call(self, operation: str, function: Callable[..., object], **kwargs: object) -> Any:
         try:
-            self.ec2.revoke_security_group_egress(
-                GroupId=group_id,
-                IpPermissions=[{"IpProtocol": "-1", "FromPort": 0, "ToPort": 0, "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}],
-            )
-        except self.ec2.exceptions.ClientError:
-            pass
-        self.ec2.authorize_security_group_egress(
-            GroupId=group_id,
-            IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}],
-        )
-        return group_id
+            return self._record(operation, function(**kwargs))
+        except Exception as exc:
+            self._record(operation + ".error", {"type": type(exc).__name__, "message": str(exc), "response": _jsonable(getattr(exc, "response", {}))})
+            raise
 
-    def _iam(self) -> str:
+    def _tags(self, **extra: str) -> list[dict[str, str]]:
+        values = {ACTION_TAG: self.config.action_id, "PneumaManaged": MANAGED_TAG, "PneumaEvidenceClass": "non-scientific", **extra}
+        return [{"Key": key, "Value": value} for key, value in sorted(values.items())]
+
+    def _resource_tags(self, resource_ids: Sequence[str]) -> None:
+        self._call("create_tags", self.ec2.create_tags, Resources=list(resource_ids), Tags=self._tags())
+
+    def _all_tagged(self, resource_type: str) -> list[dict[str, object]]:
+        if resource_type == "instances":
+            response = self._call("describe_instances.tagged", self.ec2.describe_instances, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}])
+            return [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
+        if resource_type == "security_groups":
+            return list(self._call("describe_security_groups.tagged", self.ec2.describe_security_groups, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}]).get("SecurityGroups", []))
+        if resource_type == "subnets":
+            return list(self._call("describe_subnets.tagged", self.ec2.describe_subnets, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}]).get("Subnets", []))
+        if resource_type == "route_tables":
+            return list(self._call("describe_route_tables.tagged", self.ec2.describe_route_tables, Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [self.config.action_id]}]).get("RouteTables", []))
+        if resource_type == "endpoints":
+            return list(self._call("describe_vpc_endpoints.tagged", self.ec2.describe_vpc_endpoints, Filters=[{"Name": "tag-key", "Values": [ACTION_TAG]}, {"Name": "vpc-id", "Values": [self.config.vpc_id]}]).get("VpcEndpoints", []))
+        return []
+
+    def _active_instance(self) -> str | None:
+        instances = self._all_tagged("instances")
+        active = [item for item in instances if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}]
+        if len(active) > 1:
+            raise CloudManifestError("multiple active instances share one immutable surface action")
+        if active:
+            instance_id = active[0].get("InstanceId")
+            if not isinstance(instance_id, str):
+                raise CloudManifestError("tagged active instance has no ID")
+            return instance_id
+        if instances and any(item.get("State", {}).get("Name") == "terminated" for item in instances):
+            raise CloudManifestError("surface action was already consumed; refusing a second attempt")
+        return None
+
+    def _verify_vpc(self) -> None:
+        vpcs = self._call("describe_vpcs", self.ec2.describe_vpcs, VpcIds=[self.config.vpc_id]).get("Vpcs", [])
+        if len(vpcs) != 1 or vpcs[0].get("State") != "available" or vpcs[0].get("CidrBlock") != "10.42.0.0/16" or vpcs[0].get("IsDefault") is True:
+            raise CloudManifestError("provider VPC binding is not the registered private non-default VPC")
+        attributes = [self._call("describe_vpc_attribute.dns_support", self.ec2.describe_vpc_attribute, VpcId=self.config.vpc_id, Attribute="enableDnsSupport"), self._call("describe_vpc_attribute.dns_hostnames", self.ec2.describe_vpc_attribute, VpcId=self.config.vpc_id, Attribute="enableDnsHostnames")]
+        if any(item.get("EnableDnsSupport", item.get("EnableDnsHostnames")) is not True for item in attributes):
+            raise CloudManifestError("private action subnet requires VPC DNS support and hostnames")
+        igws = self._call("describe_internet_gateways", self.ec2.describe_internet_gateways, Filters=[{"Name": "attachment.vpc-id", "Values": [self.config.vpc_id]}]).get("InternetGateways", [])
+        nats = self._call("describe_nat_gateways", self.ec2.describe_nat_gateways, Filter=[{"Name": "vpc-id", "Values": [self.config.vpc_id]}, {"Name": "state", "Values": ["pending", "available", "deleting"]}]).get("NatGateways", [])
+        transit = self._call("describe_transit_gateway_attachments", self.ec2.describe_transit_gateway_attachments, Filters=[{"Name": "resource-id", "Values": [self.config.vpc_id]}]).get("TransitGatewayAttachments", [])
+        if igws or nats or transit:
+            raise CloudManifestError("provider VPC has an internet, NAT, or transit attachment")
+
+    def _find_or_create_security_groups(self) -> None:
+        self.endpoint_security_group_id = cast(str, self._call("create_security_group.endpoint", self.ec2.create_security_group, GroupName=_name(f"pneuma-surface-v2-endpoints-{self.config.action_id}"), Description="Pneuma FIXTURE-NONSCI v2 endpoint SG", VpcId=self.config.vpc_id)["GroupId"])
+        self.instance_security_group_id = cast(str, self._call("create_security_group.instance", self.ec2.create_security_group, GroupName=_name(f"pneuma-surface-v2-instance-{self.config.action_id}"), Description="Pneuma FIXTURE-NONSCI v2 instance SG", VpcId=self.config.vpc_id)["GroupId"])
+        self._resource_tags([self.endpoint_security_group_id, self.instance_security_group_id])
+        for group_id in (self.endpoint_security_group_id, self.instance_security_group_id):
+            rules = self._call("describe_security_groups.rules", self.ec2.describe_security_groups, GroupIds=[group_id])["SecurityGroups"][0].get("IpPermissionsEgress", [])
+            if rules:
+                self._call("revoke_security_group_egress", self.ec2.revoke_security_group_egress, GroupId=group_id, IpPermissions=rules)
+        self._call("authorize_endpoint_ingress", self.ec2.authorize_security_group_ingress, GroupId=self.endpoint_security_group_id, IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "UserIdGroupPairs": [{"GroupId": self.instance_security_group_id}]}])
+        self._call("authorize_instance_endpoint_egress", self.ec2.authorize_security_group_egress, GroupId=self.instance_security_group_id, IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "UserIdGroupPairs": [{"GroupId": self.endpoint_security_group_id}]}])
+
+    def _endpoint_policy(self, service: str) -> dict[str, object]:
+        account = self.config.image_refs["controller"].split(".", 1)[0]
+        repos = [f"arn:aws:ecr:{REGION}:{account}:repository/pneuma-official-production-{role}" for role in ("controller", "model-server", "benchmark-worker")]
+        if service == "s3":
+            statement = [{"Effect": "Allow", "Principal": "*", "Action": ["s3:GetObject"], "Resource": "arn:aws:s3:::prod-us-east-1-starport-layer-bucket/*"}]
+        elif service in {"ecr.api", "ecr.dkr"}:
+            actions = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+            statement: list[dict[str, object]] = [{"Effect": "Allow", "Principal": "*", "Action": actions, "Resource": repos}]
+            if service == "ecr.api":
+                statement.append({"Effect": "Allow", "Principal": "*", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"})
+        elif service == "ssm":
+            statement = [{"Effect": "Allow", "Principal": "*", "Action": ["ssm:UpdateInstanceInformation", "ssm:GetDeployablePatchSnapshotForInstance", "ssm:GetManifest", "ssm:GetParameter", "ssm:GetParameters", "ssm:ListAssociations", "ssm:ListInstanceAssociations", "ssm:PutInventory", "ssm:PutComplianceItems", "ssm:PutConfigurePackageResult", "ssm:UpdateAssociationStatus", "ssm:UpdateInstanceAssociationStatus"], "Resource": "*"}]
+        elif service == "ssmmessages":
+            statement = [{"Effect": "Allow", "Principal": "*", "Action": ["ssmmessages:CreateControlChannel", "ssmmessages:CreateDataChannel", "ssmmessages:OpenControlChannel", "ssmmessages:OpenDataChannel"], "Resource": "*"}]
+        else:
+            statement = [{"Effect": "Allow", "Principal": "*", "Action": ["ec2messages:AcknowledgeMessage", "ec2messages:DeleteMessage", "ec2messages:FailMessage", "ec2messages:GetEndpoint", "ec2messages:GetMessages", "ec2messages:SendReply"], "Resource": "*"}]
+        return {"Version": "2012-10-17", "Statement": statement}
+
+    def _create_network(self) -> None:
+        self._verify_vpc()
+        subnet = self._call("create_subnet", self.ec2.create_subnet, VpcId=self.config.vpc_id, CidrBlock=self.config.subnet_cidr, AvailabilityZone=self.config.availability_zone)
+        self.subnet_id = cast(str, subnet["Subnet"]["SubnetId"])
+        self._resource_tags([self.subnet_id])
+        self._call("modify_subnet_no_public_ipv4", self.ec2.modify_subnet_attribute, SubnetId=self.subnet_id, MapPublicIpOnLaunch={"Value": False})
+        self.route_table_id = cast(str, self._call("create_route_table", self.ec2.create_route_table, VpcId=self.config.vpc_id)["RouteTable"]["RouteTableId"])
+        self._resource_tags([self.route_table_id])
+        association = self._call("associate_route_table", self.ec2.associate_route_table, RouteTableId=self.route_table_id, SubnetId=self.subnet_id)
+        self.route_association_id = cast(str, association["AssociationId"])
+        s3 = self._call("create_s3_gateway_endpoint", self.ec2.create_vpc_endpoint, VpcEndpointType="Gateway", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.s3", RouteTableIds=[self.route_table_id], PolicyDocument=_json(self._endpoint_policy("s3")))
+        self.s3_endpoint_id = cast(str, s3["VpcEndpoint"]["VpcEndpointId"])
+        self._resource_tags([self.s3_endpoint_id])
+        self._find_or_create_security_groups()
+        for service in INTERFACE_SERVICES:
+            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=True, PolicyDocument=_json(self._endpoint_policy(service)))
+            self.endpoint_ids[service] = cast(str, response["VpcEndpoint"]["VpcEndpointId"])
+            self._resource_tags([self.endpoint_ids[service]])
+        deadline = time.time() + 180
+        while time.time() < deadline:
+            states = self._call("describe_action_endpoints", self.ec2.describe_vpc_endpoints, VpcEndpointIds=list(self.endpoint_ids.values())).get("VpcEndpoints", [])
+            if len(states) == len(self.endpoint_ids) and all(item.get("State") == "available" for item in states):
+                break
+            if any(item.get("State") in {"failed", "deleted", "deleting"} for item in states):
+                raise CloudManifestError("action interface endpoint failed admission")
+            time.sleep(5)
+        else:
+            raise CloudManifestError("action interface endpoints did not become available")
+        route_tables = self._call("verify_action_route_table", self.ec2.describe_route_tables, RouteTableIds=[self.route_table_id])["RouteTables"]
+        routes = route_tables[0].get("Routes", [])
+        if any(route.get("GatewayId", "").startswith(("igw-", "nat-", "tgw-")) or route.get("NatGatewayId") or route.get("TransitGatewayId") for route in routes):
+            raise CloudManifestError("action route table contains general internet or transit egress")
+        if not any(route.get("DestinationPrefixListId") == "pl-63a5400a" and route.get("GatewayId") == self.s3_endpoint_id for route in routes):
+            raise CloudManifestError("action route table lacks its exact S3 gateway route")
+
+    def _iam_policy(self) -> dict[str, object]:
+        account = self.config.image_refs["controller"].split(".", 1)[0]
+        resources = [f"arn:aws:ecr:{REGION}:{account}:repository/pneuma-official-production-{role}" for role in ("controller", "model-server", "benchmark-worker")]
+        return {
+            "Version": "2012-10-17",
+            "Statement": [
+                {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
+                {"Effect": "Allow", "Action": ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"], "Resource": resources},
+                {"Effect": "Allow", "Action": ["ssm:DescribeAssociation", "ssm:GetDeployablePatchSnapshotForInstance", "ssm:GetDocument", "ssm:DescribeDocument", "ssm:GetManifest", "ssm:GetParameter", "ssm:GetParameters", "ssm:ListAssociations", "ssm:ListInstanceAssociations", "ssm:PutInventory", "ssm:PutComplianceItems", "ssm:PutConfigurePackageResult", "ssm:UpdateAssociationStatus", "ssm:UpdateInstanceAssociationStatus", "ssm:UpdateInstanceInformation"], "Resource": "*"},
+                {"Effect": "Allow", "Action": ["ssmmessages:CreateControlChannel", "ssmmessages:CreateDataChannel", "ssmmessages:OpenControlChannel", "ssmmessages:OpenDataChannel"], "Resource": "*"},
+                {"Effect": "Allow", "Action": ["ec2messages:AcknowledgeMessage", "ec2messages:DeleteMessage", "ec2messages:FailMessage", "ec2messages:GetEndpoint", "ec2messages:GetMessages", "ec2messages:SendReply"], "Resource": "*"},
+            ],
+        }
+
+    def _create_iam(self) -> None:
         trust = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]}
-        self.iam.create_role(RoleName=self.role_name, AssumeRolePolicyDocument=_json(trust), Description="Pneuma non-scientific production surface E2E")
-        account = self.ecr.get_authorization_token()["authorizationData"][0]["proxyEndpoint"].split("//", 1)[-1].split(".", 1)[0]
-        resources = [f"arn:aws:ecr:us-east-1:{account}:repository/pneuma-official-production-{role}" for role in ("controller", "model-server", "benchmark-worker")]
-        policy = {"Version": "2012-10-17", "Statement": [
-            {"Effect": "Allow", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"},
-            {"Effect": "Allow", "Action": ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"], "Resource": resources},
-        ]}
-        self.iam.put_role_policy(RoleName=self.role_name, PolicyName=self.policy_name, PolicyDocument=_json(policy))
-        self.iam.attach_role_policy(RoleName=self.role_name, PolicyArn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore")
-        self.iam.create_instance_profile(InstanceProfileName=self.profile_name)
-        self.iam.add_role_to_instance_profile(InstanceProfileName=self.profile_name, RoleName=self.role_name)
-        return self.profile_name
+        self._call("create_role", self.iam.create_role, RoleName=self.role_name, AssumeRolePolicyDocument=_json(trust), Description="Pneuma FIXTURE-NONSCI v2 role; no scientific inputs")
+        self._call("put_role_policy", self.iam.put_role_policy, RoleName=self.role_name, PolicyName=self.policy_name, PolicyDocument=_json(self._iam_policy()))
+        self._call("create_instance_profile", self.iam.create_instance_profile, InstanceProfileName=self.profile_name)
+        self._call("add_role_to_instance_profile", self.iam.add_role_to_instance_profile, InstanceProfileName=self.profile_name, RoleName=self.role_name)
+        self._call("tag_role", self.iam.tag_role, RoleName=self.role_name, Tags=self._tags())
+        self._call("tag_instance_profile", self.iam.tag_instance_profile, InstanceProfileName=self.profile_name, Tags=self._tags())
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            profile = self._call("get_instance_profile", self.iam.get_instance_profile, InstanceProfileName=self.profile_name)["InstanceProfile"]
+            roles = profile.get("Roles", [])
+            if any(item.get("RoleName") == self.role_name for item in roles):
+                return
+            time.sleep(2)
+        raise CloudManifestError("IAM instance profile did not become launchable before the one submit")
+
+    def _create_ssm_document(self) -> None:
+        content = _fixed_ssm_document()
+        raw = _canonical(content)
+        self.document_sha256 = _sha_bytes(raw)
+        self._call("create_ssm_document", self.ssm.create_document, Content=raw.decode("utf-8"), Name=self.document_name, DocumentType="Command", DocumentFormat="JSON", TargetType="/AWS::EC2::Instance", Tags=self._tags())
+        document = self._call("get_ssm_document", self.ssm.get_document, Name=self.document_name, DocumentVersion=self.document_version, DocumentFormat="JSON")
+        if document.get("Status") != "Active" or document.get("DocumentVersion") != self.document_version or document.get("Hash") != self.document_sha256:
+            raise CloudManifestError("custom SSM document hash/version did not round-trip")
+
+    def _watchdog_path(self) -> Path:
+        return Path(__file__).resolve().parents[3] / "scripts/research/fixture_v2_watchdog.py"
+
+    def _start_watchdog(self, *, deadline_epoch: float) -> None:
+        path = self._watchdog_path()
+        if not path.is_file():
+            raise CloudManifestError("durable fixture watchdog source is missing")
+        self.watchdog_source_sha256 = _sha_bytes(path.read_bytes())
+        command = [os.environ.get("PYTHON", "python3"), str(path), "--region", self.config.region, "--action-id", self.config.action_id, "--deadline-epoch", str(int(deadline_epoch))]
+        self.watchdog = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        self.watchdog_pid = self.watchdog.pid
+        time.sleep(0.2)
+        if self.watchdog.poll() is not None:
+            raise CloudManifestError("external fixture watchdog exited before instance launch")
+
+    def _read_instance(self, instance_id: str) -> Mapping[str, object]:
+        response = self._call("describe_instance.effective", self.ec2.describe_instances, InstanceIds=[instance_id])
+        instances = [instance for reservation in response.get("Reservations", []) for instance in reservation.get("Instances", [])]
+        if len(instances) != 1:
+            raise CloudManifestError("effective launch readback did not return exactly one instance")
+        return cast(Mapping[str, object], instances[0])
+
+    def _verify_effective_launch(self, instance_id: str) -> None:
+        instance = self._read_instance(instance_id)
+        if instance.get("ImageId") != self.config.ami_id or instance.get("InstanceType") != INSTANCE_TYPE or instance.get("Architecture") != AMI_ARCHITECTURE or instance.get("Placement", {}).get("AvailabilityZone") != self.config.availability_zone or instance.get("ClientToken") is None or instance.get("InstanceLifecycle") not in {None, "normal"}:
+            raise CloudManifestError("effective AMI/type/AZ/architecture/client-token binding differs")
+        if instance.get("SubnetId") != self.subnet_id or instance.get("VpcId") != self.config.vpc_id or instance.get("PrivateDnsNameOptions", {}).get("HostnameType") not in {None, "ip-name"}:
+            raise CloudManifestError("effective private subnet/VPC binding differs")
+        if instance.get("PublicIpAddress") is not None or instance.get("Ipv6Address") is not None or instance.get("EnaSupport") is not True:
+            raise CloudManifestError("fixture instance has a public or IPv6 address")
+        if instance.get("MetadataOptions", {}).get("HttpTokens") != "required" or instance.get("MetadataOptions", {}).get("HttpPutResponseHopLimit") != 1:
+            raise CloudManifestError("IMDS hop-limit/token binding differs")
+        state = instance.get("State", {}).get("Name")
+        if state not in {"pending", "running"}:
+            raise CloudManifestError(f"fixture instance entered unexpected state {state!r}")
+        profile = instance.get("IamInstanceProfile", {}).get("Arn", "")
+        if not str(profile).endswith(f"instance-profile/{self.profile_name}"):
+            raise CloudManifestError("effective IAM profile binding differs")
+        interfaces = instance.get("NetworkInterfaces", [])
+        if len(interfaces) != 1 or interfaces[0].get("Association") or interfaces[0].get("Ipv6Addresses") or interfaces[0].get("DeleteOnTermination") is not True or interfaces[0].get("Groups", [{}])[0].get("GroupId") != self.instance_security_group_id:
+            raise CloudManifestError("effective network interface is not private/action-scoped")
+        mappings = instance.get("BlockDeviceMappings", [])
+        root = next((item for item in mappings if item.get("DeviceName") == AMI_ROOT_DEVICE), None)
+        if not root or root.get("Ebs", {}).get("DeleteOnTermination") is not True or root.get("Ebs", {}).get("Encrypted") is not True:
+            raise CloudManifestError("effective root EBS deletion/encryption binding differs")
+        self.instance_volume_ids = [cast(str, item["Ebs"]["VolumeId"]) for item in mappings if item.get("Ebs", {}).get("VolumeId")]
+        self.instance_network_interface_ids = [cast(str, item["NetworkInterfaceId"]) for item in interfaces if item.get("NetworkInterfaceId")]
+        self._call("describe_image.effective", self.ec2.describe_images, ImageIds=[self.config.ami_id])
+
+    def _hydrate(self, instance_id: str) -> None:
+        self.instance_id = instance_id
+        tagged_subnets = self._all_tagged("subnets")
+        tagged_routes = self._all_tagged("route_tables")
+        tagged_groups = self._all_tagged("security_groups")
+        tagged_endpoints = self._all_tagged("endpoints")
+        if len(tagged_subnets) != 1 or len(tagged_routes) != 1 or len(tagged_groups) != 2:
+            raise CloudManifestError("restart reconciliation found an incomplete action network")
+        self.subnet_id = cast(str, tagged_subnets[0]["SubnetId"])
+        self.route_table_id = cast(str, tagged_routes[0]["RouteTableId"])
+        self.endpoint_security_group_id = cast(str, next(item["GroupId"] for item in tagged_groups if item.get("Description", "").endswith("endpoint SG")))
+        self.instance_security_group_id = cast(str, next(item["GroupId"] for item in tagged_groups if item.get("Description", "").endswith("instance SG")))
+        for endpoint in tagged_endpoints:
+            if endpoint.get("VpcEndpointType") == "Gateway":
+                self.s3_endpoint_id = cast(str, endpoint["VpcEndpointId"])
+            else:
+                for name in INTERFACE_SERVICES:
+                    if str(endpoint.get("ServiceName", "")).endswith("." + name):
+                        self.endpoint_ids[name] = cast(str, endpoint["VpcEndpointId"])
+        self._verify_effective_launch(instance_id)
 
     def submit(self, *, client_token: str, allocation: Mapping[str, Sequence[str]]) -> ProductionSubmission:
         if set(allocation) != {"worker-0", "worker-1"}:
-            raise CloudManifestError("surface provider requires the canonical two-worker allocation shape")
-        existing = self._find_existing()
+            raise CloudManifestError("surface provider requires the canonical two-worker controller allocation shape")
+        if len(client_token) > 64 or not re.fullmatch(r"[A-Za-z0-9-]+", client_token):
+            raise CloudManifestError("surface client token is not a fixed safe value")
+        existing = self._active_instance()
         if existing is not None:
-            self.instance_id = existing
+            self._hydrate(existing)
             self.submission = ProductionSubmission(existing, (existing,))
             return self.submission
-        vpc_id, subnet_id = self._default_network()
-        self.security_group_id = self._security_group(vpc_id)
-        profile = self._iam()
+        self._create_network()
+        self._create_iam()
+        self._create_ssm_document()
+        deadline = time.time() + MAX_DURATION_SECONDS
+        self._start_watchdog(deadline_epoch=deadline)
         user_data = render_surface_user_data(self.config)
-        tags = [
-            {"Key": _TAG_KEY, "Value": self.config.action_id},
-            {"Key": "PneumaManaged", "Value": "production-surface-e2e"},
-            {"Key": "PneumaEvidenceClass", "Value": "non-scientific"},
-        ]
-        run_kwargs = {
-            "ImageId": AMI_ID,
+        tags = self._tags()
+        run_kwargs: dict[str, object] = {
+            "ImageId": self.config.ami_id,
             "InstanceType": INSTANCE_TYPE,
             "MinCount": 1,
             "MaxCount": 1,
-            "ClientToken": client_token[:64],
-            "IamInstanceProfile": {"Name": profile},
-            "NetworkInterfaces": [{"DeviceIndex": 0, "SubnetId": subnet_id, "Groups": [self.security_group_id], "AssociatePublicIpAddress": True, "DeleteOnTermination": True}],
-            "BlockDeviceMappings": [{"DeviceName": "/dev/xvda", "Ebs": {"VolumeSize": 80, "VolumeType": "gp3", "Encrypted": True, "DeleteOnTermination": True}}],
+            "ClientToken": client_token,
+            "IamInstanceProfile": {"Name": self.profile_name},
+            "NetworkInterfaces": [{"DeviceIndex": 0, "SubnetId": self.subnet_id, "Groups": [self.instance_security_group_id], "AssociatePublicIpAddress": False, "DeleteOnTermination": True}],
+            "BlockDeviceMappings": [{"DeviceName": AMI_ROOT_DEVICE, "Ebs": {"VolumeSize": 30, "VolumeType": "gp3", "Encrypted": True, "DeleteOnTermination": True}}],
             "MetadataOptions": {"HttpTokens": "required", "HttpEndpoint": "enabled", "HttpPutResponseHopLimit": 1},
+            "InstanceInitiatedShutdownBehavior": "terminate",
             "UserData": user_data,
-            "TagSpecifications": [{"ResourceType": "instance", "Tags": tags}, {"ResourceType": "volume", "Tags": tags}],
+            "TagSpecifications": [{"ResourceType": resource_type, "Tags": tags} for resource_type in ("instance", "volume", "network-interface")],
         }
-        response = None
-        for attempt in range(4):
-            try:
-                response = self.ec2.run_instances(**run_kwargs)
-                break
-            except self.ec2.exceptions.ClientError as exc:
-                if not _is_iam_profile_propagation_error(exc) or attempt == 3:
-                    raise
-                time.sleep(2**attempt)
-        if response is None:
-            raise CloudManifestError("AWS instance submission produced no response")
-        instance_id = cast(str, response["Instances"][0]["InstanceId"])
+        # Exactly one RunInstances call. Eventual consistency is handled before
+        # this point, never by replaying a potentially successful submission.
+        response = self._call("run_instances.once", self.ec2.run_instances, **run_kwargs)
+        instances = response.get("Instances", [])
+        if len(instances) != 1:
+            raise CloudManifestError("RunInstances did not return exactly one fixture instance")
+        instance_id = cast(str, instances[0]["InstanceId"])
         self.instance_id = instance_id
+        self.launch_epoch = time.time()
+        self.external_deadline_epoch = deadline
+        self._verify_effective_launch(instance_id)
         self.submission = ProductionSubmission(instance_id, (instance_id,))
         return self.submission
+
+    def _ssm_online(self, instance_id: str) -> bool:
+        response = self._call("describe_instance_information", self.ssm.describe_instance_information, Filters=[{"Key": "InstanceIds", "Values": [instance_id]}])
+        information = response.get("InstanceInformationList", [])
+        online = len(information) == 1 and information[0].get("PingStatus") == "Online"
+        self.ssm_online_seen = self.ssm_online_seen or online
+        return online
 
     def observe(self, submission: ProductionSubmission) -> Mapping[str, Any]:
         instance_id = submission.parent_job_id
         self.instance_id = instance_id
+        if self.external_deadline_epoch is not None and time.time() >= self.external_deadline_epoch:
+            raise CloudManifestError("external fixture deadline expired before observation")
+        if not self.ssm_online_seen:
+            if not self._ssm_online(instance_id):
+                return {"terminal": False, "provider_state": "SSM_OFFLINE"}
         if self.command_id is None:
-            try:
-                command = self.ssm.send_command(
-                    InstanceIds=[instance_id],
-                    DocumentName="AWS-RunShellScript",
-                    Parameters={"commands": ["if test -f /var/lib/pneuma-surface/status.json; then cat /var/lib/pneuma-surface/status.json; else echo '{\"terminal\":false,\"state\":\"WAITING\"}'; fi"]},
-                    TimeoutSeconds=30,
-                    Comment="Pneuma bounded production-surface status read",
-                )
-            except self.ssm.exceptions.InvalidInstanceId:
-                return {"terminal": False, "provider_state": "SSM_INSTANCE_PENDING"}
+            command = self._call("send_custom_ssm_command", self.ssm.send_command, InstanceIds=[instance_id], DocumentName=self.document_name, DocumentVersion=self.document_version, Parameters={}, TimeoutSeconds=30, MaxConcurrency="1", MaxErrors="0", Comment="Pneuma FIXTURE-NONSCI v2 fixed status observation")
             self.command_id = cast(str, command["Command"]["CommandId"])
         try:
-            invocation = self.ssm.get_command_invocation(CommandId=self.command_id, InstanceId=instance_id)
-        except self.ssm.exceptions.InvocationDoesNotExist:
-            return {"terminal": False, "provider_state": "SSM_PENDING"}
-        if invocation.get("Status") not in {"Success", "Failed", "TimedOut", "Cancelled"}:
-            return {"terminal": False, "provider_state": invocation.get("Status", "SSM_UNKNOWN")}
-        # SSM command output is a snapshot.  Do not reuse a successful read
-        # after the status file may have changed; the next observation must
-        # issue a fresh, read-only command.
+            invocation = self._call("get_custom_ssm_invocation", self.ssm.get_command_invocation, CommandId=self.command_id, InstanceId=instance_id)
+        except Exception as exc:
+            if _absent(exc, "InvocationDoesNotExist"):
+                return {"terminal": False, "provider_state": "SSM_PENDING"}
+            raise
+        status_name = invocation.get("Status")
+        if status_name not in {"Success", "Failed", "TimedOut", "Cancelled"}:
+            return {"terminal": False, "provider_state": status_name or "SSM_UNKNOWN"}
         self.command_id = None
         stdout = str(invocation.get("StandardOutputContent", "")).strip()
         try:
@@ -341,117 +659,188 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if not isinstance(status, Mapping):
             status = {"terminal": False, "state": "INVALID_STATUS"}
         self.last_status = cast(Mapping[str, Any], status)
-        terminal = status.get("terminal") is True and invocation.get("Status") == "Success"
-        return {"terminal": terminal, "provider_state": status.get("state", invocation.get("Status")), "status_sha256": _sha(dict(status)), "status": dict(status)}
+        terminal = status_name == "Success" and status.get("terminal") is True
+        return {"terminal": terminal, "provider_state": status.get("state", status_name), "status_sha256": _sha(dict(status)), "status": dict(status), "ssm_status": status_name}
+
+    def close_attempt(self) -> None:
+        self.attempt_closed = True
+
+    def _wait_absent(self, operation: str, getter: Callable[[], Sequence[Mapping[str, object]]], *, timeout: float = 120) -> None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            values = list(getter())
+            if not values:
+                return
+            time.sleep(3)
+        raise CloudManifestError(f"cleanup did not reach terminal absence for {operation}")
+
+    def _volumes_present(self) -> Sequence[Mapping[str, object]]:
+        if not self.instance_volume_ids:
+            return []
+        try:
+            response = self._call("describe_action_volumes", self.ec2.describe_volumes, VolumeIds=list(self.instance_volume_ids))
+        except Exception as exc:
+            if _absent(exc, "InvalidVolume.NotFound", "InvalidVolumeID.NotFound"):
+                return []
+            raise
+        return cast(Sequence[Mapping[str, object]], response.get("Volumes", []))
+
+    def _network_interfaces_present(self) -> Sequence[Mapping[str, object]]:
+        if not self.instance_network_interface_ids:
+            return []
+        try:
+            response = self._call("describe_action_network_interfaces", self.ec2.describe_network_interfaces, NetworkInterfaceIds=list(self.instance_network_interface_ids))
+        except Exception as exc:
+            if _absent(exc, "InvalidNetworkInterfaceID.NotFound"):
+                return []
+            raise
+        return cast(Sequence[Mapping[str, object]], response.get("NetworkInterfaces", []))
+
+    def _stop_watchdog(self) -> None:
+        if self.watchdog is None:
+            return
+        if self.watchdog.poll() is None:
+            try:
+                os.killpg(self.watchdog.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                self.watchdog.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(self.watchdog.pid, signal.SIGKILL)
+                self.watchdog.wait(timeout=10)
+        self.watchdog = None
+
+    def _delete_action_endpoints(self) -> None:
+        ids = list(self.endpoint_ids.values()) + ([self.s3_endpoint_id] if self.s3_endpoint_id else [])
+        if ids:
+            self._call("delete_vpc_endpoints", self.ec2.delete_vpc_endpoints, VpcEndpointIds=ids)
+            self._wait_absent("VPC endpoints", lambda: self._all_tagged("endpoints"))
+
+    def _delete_iam(self) -> None:
+        for function, kwargs, operation in (
+            (self.iam.remove_role_from_instance_profile, {"InstanceProfileName": self.profile_name, "RoleName": self.role_name}, "remove_role_from_instance_profile"),
+            (self.iam.delete_instance_profile, {"InstanceProfileName": self.profile_name}, "delete_instance_profile"),
+            (self.iam.delete_role_policy, {"RoleName": self.role_name, "PolicyName": self.policy_name}, "delete_role_policy"),
+            (self.iam.delete_role, {"RoleName": self.role_name}, "delete_role"),
+        ):
+            try:
+                self._call(operation, function, **kwargs)
+            except Exception as exc:
+                if not _absent(exc, "NoSuchEntity", "NoSuchEntityException"):
+                    raise
 
     def teardown(self, submission: ProductionSubmission | None) -> Mapping[str, Any] | None:
+        if not self.attempt_closed:
+            raise CloudManifestError("fixture attempt must be explicitly closed before teardown")
         instance_id = submission.parent_job_id if submission is not None else self.instance_id
+        cleanup_error: Exception | None = None
         if instance_id:
-            instance_absent = False
             try:
-                self.ec2.terminate_instances(InstanceIds=[instance_id])
-            except self.ec2.exceptions.ClientError as exc:
-                if not _is_absent_instance_error(exc):
+                self._call("describe_instance.before_terminate", self.ec2.describe_instances, InstanceIds=[instance_id])
+                self._call("terminate_instances", self.ec2.terminate_instances, InstanceIds=[instance_id])
+                self._call("wait_instance_terminated", self.ec2.get_waiter("instance_terminated").wait, InstanceIds=[instance_id], WaiterConfig={"Delay": 5, "MaxAttempts": 36})
+            except Exception as exc:
+                if not _absent(exc, "InvalidInstanceID.NotFound"):
+                    cleanup_error = exc
+        self._stop_watchdog()
+        try:
+            self._wait_absent("EBS volumes", self._volumes_present, timeout=180)
+            self._wait_absent("network interfaces", self._network_interfaces_present, timeout=180)
+        except Exception as exc:
+            cleanup_error = cleanup_error or exc
+        try:
+            self._delete_action_endpoints()
+            if self.endpoint_security_group_id:
+                self._call("delete_endpoint_security_group", self.ec2.delete_security_group, GroupId=self.endpoint_security_group_id)
+            if self.instance_security_group_id:
+                self._call("delete_instance_security_group", self.ec2.delete_security_group, GroupId=self.instance_security_group_id)
+            if self.route_association_id:
+                try:
+                    self._call("disassociate_route_table", self.ec2.disassociate_route_table, AssociationId=self.route_association_id)
+                except Exception as exc:
+                    if not _absent(exc, "InvalidRouteTableID.NotFound", "InvalidAssociationID.NotFound"):
+                        raise
+            if self.route_table_id:
+                self._call("delete_route_table", self.ec2.delete_route_table, RouteTableId=self.route_table_id)
+            if self.subnet_id:
+                self._call("delete_subnet", self.ec2.delete_subnet, SubnetId=self.subnet_id)
+            try:
+                self._call("delete_ssm_document", self.ssm.delete_document, Name=self.document_name)
+            except Exception as exc:
+                if not _absent(exc, "InvalidDocument", "ResourceNotFoundException"):
                     raise
-                instance_absent = True
-            if not instance_absent:
-                try:
-                    self.ec2.get_waiter("instance_terminated").wait(InstanceIds=[instance_id], WaiterConfig={"Delay": 5, "MaxAttempts": 36})
-                except Exception:
-                    pass
-        if self.security_group_id is None:
-            groups = self.ec2.describe_security_groups(Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [self.config.action_id]}])["SecurityGroups"]
-            self.security_group_id = groups[0]["GroupId"] if groups else None
-        if self.security_group_id:
-            for attempt in range(6):
-                try:
-                    self.ec2.delete_security_group(GroupId=self.security_group_id)
-                    break
-                except self.ec2.exceptions.ClientError as exc:
-                    error = exc.response.get("Error", {})
-                    if error.get("Code") != "DependencyViolation" or attempt == 5:
-                        break
-                    time.sleep(2**attempt)
-        try:
-            self.iam.remove_role_from_instance_profile(InstanceProfileName=self.profile_name, RoleName=self.role_name)
-        except self.iam.exceptions.NoSuchEntityException:
-            pass
-        try:
-            self.iam.delete_instance_profile(InstanceProfileName=self.profile_name)
-        except self.iam.exceptions.NoSuchEntityException:
-            pass
-        try:
-            self.iam.delete_role_policy(RoleName=self.role_name, PolicyName=self.policy_name)
-        except self.iam.exceptions.NoSuchEntityException:
-            pass
-        try:
-            self.iam.detach_role_policy(RoleName=self.role_name, PolicyArn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore")
-            self.iam.delete_role(RoleName=self.role_name)
-        except self.iam.exceptions.NoSuchEntityException:
-            pass
-        receipt = {
-            "status": "COMPLETE",
+            self._delete_iam()
+            self._wait_absent("active action instances", lambda: [item for item in self._all_tagged("instances") if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}], timeout=60)
+        except Exception as exc:
+            cleanup_error = cleanup_error or exc
+        fresh = self.fresh_absence()
+        receipt: dict[str, object] = {
+            "record_kind": "cloud_production_surface_teardown",
+            "schema_version": "0.2.0",
+            "action_id": self.config.action_id,
+            "evidence_class": "production_surface_non_scientific",
+            "authority": "none",
+            "fixture_mode": "FIXTURE-NONSCI",
+            "status": "COMPLETE" if cleanup_error is None and fresh else "FAILED",
             "instance_id": instance_id,
-            "security_group_id": self.security_group_id,
+            "subnet_id": self.subnet_id,
+            "route_table_id": self.route_table_id,
+            "s3_endpoint_id": self.s3_endpoint_id,
+            "interface_endpoint_ids": dict(self.endpoint_ids),
+            "security_group_ids": [value for value in (self.instance_security_group_id, self.endpoint_security_group_id) if value],
             "iam_role": self.role_name,
             "instance_profile": self.profile_name,
-            "fresh_provider_absence": self.fresh_absence(),
+            "ssm_document": {"name": self.document_name, "version": self.document_version, "sha256": self.document_sha256},
+            "watchdog": {"pid": self.watchdog_pid, "source_sha256": self.watchdog_source_sha256, "deadline_epoch": self.external_deadline_epoch},
+            "resource_ids": {"instances": [instance_id] if instance_id else [], "volumes": list(self.instance_volume_ids), "network_interfaces": list(self.instance_network_interface_ids)},
+            "provider_response_hashes": list(self.provider_responses),
+            "fresh_provider_absence": fresh,
             "retained_ecr_images": True,
+            "actual_billing": {"status": "delayed_not_available", "usd": None},
         }
         self.last_teardown = receipt
+        if cleanup_error is not None or not fresh:
+            raise CloudManifestError(f"fixture teardown failed; fresh_absence={fresh}") from cleanup_error
         return receipt
 
     def fresh_absence(self) -> bool:
-        active = self._find_existing()
-        groups = self.ec2.describe_security_groups(Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [self.config.action_id]}])["SecurityGroups"]
+        active = [item for item in self._all_tagged("instances") if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}]
+        groups = self._all_tagged("security_groups")
+        subnets = self._all_tagged("subnets")
+        routes = self._all_tagged("route_tables")
+        endpoints = self._all_tagged("endpoints")
+        volumes = self._volumes_present()
+        interfaces = self._network_interfaces_present()
+        role_absent = profile_absent = document_absent = True
         try:
-            self.iam.get_role(RoleName=self.role_name)
+            self._call("fresh_get_role", self.iam.get_role, RoleName=self.role_name)
             role_absent = False
-        except self.iam.exceptions.NoSuchEntityException:
-            role_absent = True
+        except Exception as exc:
+            if not _absent(exc, "NoSuchEntity", "NoSuchEntityException"):
+                raise
         try:
-            self.iam.get_instance_profile(InstanceProfileName=self.profile_name)
+            self._call("fresh_get_instance_profile", self.iam.get_instance_profile, InstanceProfileName=self.profile_name)
             profile_absent = False
-        except self.iam.exceptions.NoSuchEntityException:
-            profile_absent = True
-        return active is None and not groups and role_absent and profile_absent
+        except Exception as exc:
+            if not _absent(exc, "NoSuchEntity", "NoSuchEntityException"):
+                raise
+        try:
+            self._call("fresh_get_ssm_document", self.ssm.get_document, Name=self.document_name, DocumentVersion=self.document_version, DocumentFormat="JSON")
+            document_absent = False
+        except Exception as exc:
+            if not _absent(exc, "InvalidDocument", "ResourceNotFoundException"):
+                raise
+        return not active and not groups and not subnets and not routes and not endpoints and not volumes and not interfaces and role_absent and profile_absent and document_absent
 
 
-def collect_preflight(*, region: str = "us-east-1", action_id: str | None = None) -> dict[str, Any]:
-    """Collect fresh read-only account, quota, capacity, and price evidence."""
-
-    boto3 = _boto3()
-    ec2 = boto3.client("ec2", region_name=region)
-    sts = boto3.client("sts", region_name=region)
-    quotas = boto3.client("service-quotas", region_name=region)
-    pricing = boto3.client("pricing", region_name="us-east-1")
-    identity = sts.get_caller_identity()
-    account = str(identity["Account"])
-    offerings = ec2.describe_instance_type_offerings(
-        LocationType="availability-zone",
-        Filters=[{"Name": "instance-type", "Values": [INSTANCE_TYPE]}],
-    )["InstanceTypeOfferings"]
-    azs = sorted(item["Location"] for item in offerings if item.get("Location"))
-    if not azs:
-        raise CloudManifestError("fresh m7i.large capacity offering is absent")
-    quota = quotas.get_service_quota(ServiceCode="ec2", QuotaCode="L-1216C47A")
-    price_response = pricing.get_products(
-        ServiceCode="AmazonEC2",
-        Filters=[
-            {"Type": "TERM_MATCH", "Field": "instanceType", "Value": INSTANCE_TYPE},
-            {"Type": "TERM_MATCH", "Field": "operatingSystem", "Value": "Linux"},
-            {"Type": "TERM_MATCH", "Field": "tenancy", "Value": "Shared"},
-            {"Type": "TERM_MATCH", "Field": "preInstalledSw", "Value": "NA"},
-            {"Type": "TERM_MATCH", "Field": "capacitystatus", "Value": "Used"},
-            {"Type": "TERM_MATCH", "Field": "location", "Value": "US East (N. Virginia)"},
-        ],
-        MaxResults=1,
-    )
-    if not price_response.get("PriceList"):
+def _price_document(response: Mapping[str, object]) -> tuple[Decimal, dict[str, object]]:
+    values = response.get("PriceList", [])
+    if not isinstance(values, list) or not values:
         raise CloudManifestError("fresh m7i.large On-Demand price is unavailable")
-    price_document = json.loads(price_response["PriceList"][0])
-    price = None
-    for term in price_document.get("terms", {}).get("OnDemand", {}).values():
+    document = json.loads(str(values[0]))
+    price: Decimal | None = None
+    for term in document.get("terms", {}).get("OnDemand", {}).values():
         for dimension in term.get("priceDimensions", {}).values():
             if dimension.get("unit") == "Hrs":
                 price = Decimal(str(dimension["pricePerUnit"]["USD"]))
@@ -460,37 +849,65 @@ def collect_preflight(*, region: str = "us-east-1", action_id: str | None = None
             break
     if price is None:
         raise CloudManifestError("fresh m7i.large hourly price is malformed")
-    max_seconds = Decimal(MAX_DURATION_SECONDS)
-    ec2_cost = (price * max_seconds / Decimal(3600)).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
-    ebs_cost = (Decimal("80") * Decimal("0.08") * max_seconds / Decimal("2592000")).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
-    projected = (ec2_cost + ebs_cost + Decimal("0.50")).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+    return price, document
+
+
+def collect_preflight(*, region: str = REGION, action_id: str | None = None) -> dict[str, Any]:
+    """Collect fresh admission data without creating an AWS resource."""
+
+    if region != REGION:
+        raise CloudManifestError("fixture provider is registered only in us-east-1")
+    boto3 = _boto3()
+    ec2 = boto3.client("ec2", region_name=region)
+    sts = boto3.client("sts", region_name=region)
+    quotas = boto3.client("service-quotas", region_name=region)
+    pricing = boto3.client("pricing", region_name=region)
+    identity = sts.get_caller_identity()
+    account = str(identity["Account"])
+    images = ec2.describe_images(ImageIds=[AMI_ID])["Images"]
+    if len(images) != 1:
+        raise CloudManifestError("registered Docker/SSM AMI is unavailable")
+    image = images[0]
+    if image.get("OwnerId") != AMI_OWNER_ID or image.get("Architecture") != AMI_ARCHITECTURE or image.get("RootDeviceName") != AMI_ROOT_DEVICE or image.get("RootDeviceType") != "ebs" or image.get("State") != "available":
+        raise CloudManifestError("registered AMI owner/architecture/root-device binding failed")
+    offerings = ec2.describe_instance_type_offerings(LocationType="availability-zone", Filters=[{"Name": "instance-type", "Values": [INSTANCE_TYPE]}])["InstanceTypeOfferings"]
+    azs = sorted(item["Location"] for item in offerings if item.get("Location"))
+    if AVAILABILITY_ZONE not in azs:
+        raise CloudManifestError("fresh m7i.large capacity offering is absent in the registered AZ")
+    quota = quotas.get_service_quota(ServiceCode="ec2", QuotaCode="L-1216C47A")
+    price_response = pricing.get_products(ServiceCode="AmazonEC2", Filters=[{"Type": "TERM_MATCH", "Field": "instanceType", "Value": INSTANCE_TYPE}, {"Type": "TERM_MATCH", "Field": "operatingSystem", "Value": "Linux"}, {"Type": "TERM_MATCH", "Field": "tenancy", "Value": "Shared"}, {"Type": "TERM_MATCH", "Field": "preInstalledSw", "Value": "NA"}, {"Type": "TERM_MATCH", "Field": "capacitystatus", "Value": "Used"}, {"Type": "TERM_MATCH", "Field": "location", "Value": "US East (N. Virginia)"}], MaxResults=1)
+    price, price_document = _price_document(price_response)
+    seconds = Decimal(MAX_DURATION_SECONDS)
+    ec2_cost = (price * seconds / Decimal(3600)).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
+    ebs_cost = (Decimal("30") * Decimal("0.08") * seconds / Decimal("2592000")).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
+    endpoint_cost = (Decimal(len(INTERFACE_SERVICES)) * Decimal("0.01") * seconds / Decimal(3600)).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
+    projected = (ec2_cost + ebs_cost + endpoint_cost + Decimal("0.50")).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
     if projected > MAX_USD:
-        raise CloudManifestError("bounded surface projected cost exceeds its admission ceiling")
-    active_instances = []
-    tagged_groups = []
+        raise CloudManifestError("bounded fixture-v2 projected cost exceeds its admission ceiling")
+    active: list[object] = []
+    tagged_groups: list[object] = []
     if action_id is not None:
-        active_instances = [
-            instance
-            for reservation in ec2.describe_instances(
-                Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [action_id]}, {"Name": "instance-state-name", "Values": ["pending", "running", "stopping", "stopped"]}]
-            ).get("Reservations", [])
-            for instance in reservation.get("Instances", [])
-        ]
-        tagged_groups = ec2.describe_security_groups(Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [action_id]}]).get("SecurityGroups", [])
+        validate_action_id(action_id)
+        active = [item for item in ec2.describe_instances(Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [action_id]}]).get("Reservations", []) for item in item.get("Instances", []) if item.get("State", {}).get("Name") not in {"terminated", "shutting-down"}]
+        tagged_groups = ec2.describe_security_groups(Filters=[{"Name": f"tag:{ACTION_TAG}", "Values": [action_id]}]).get("SecurityGroups", [])
     return {
         "record_kind": "cloud_production_surface_preflight",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "provider": "aws",
         "region": region,
-        "account_id_sha256": hashlib.sha256(account.encode()).hexdigest(),
-        "ami_id": AMI_ID,
+        "account_id": account,
+        "caller_arn": identity.get("Arn"),
+        "vpc_id": VPC_ID,
+        "availability_zone": AVAILABILITY_ZONE,
+        "ami": {"id": AMI_ID, "owner_id": AMI_OWNER_ID, "architecture": AMI_ARCHITECTURE, "root_device_name": AMI_ROOT_DEVICE, "root_device_type": "ebs", "image_response_sha256": _sha(image)},
         "instance_type": INSTANCE_TYPE,
         "capacity_offerings": azs,
         "quota": {"quota_code": "L-1216C47A", "value": quota["Quota"]["Value"], "unit": quota["Quota"]["Unit"]},
-        "price": {"hourly_usd": str(price), "currency": "USD", "price_response_sha256": hashlib.sha256(canonical_bytes(price_document)).hexdigest()},
-        "cost": {"max_duration_seconds": MAX_DURATION_SECONDS, "ec2_usd": str(ec2_cost), "ebs_usd": str(ebs_cost), "other_allowance_usd": "0.50", "projected_usd": str(projected), "ceiling_usd": str(MAX_USD)},
-        "fresh_resource_absence_before": not active_instances and not tagged_groups,
+        "price": {"hourly_usd": str(price), "currency": "USD", "price_response_sha256": _sha(price_document)},
+        "cost": {"max_duration_seconds": MAX_DURATION_SECONDS, "ec2_usd": str(ec2_cost), "ebs_usd": str(ebs_cost), "interface_endpoints": len(INTERFACE_SERVICES), "interface_endpoint_usd": str(endpoint_cost), "other_allowance_usd": "0.50", "projected_max_usd": str(projected), "ceiling_usd": str(MAX_USD), "actual_billing_status": "delayed_not_available"},
+        "network_contract": {"public_ipv4": False, "global_ipv6": False, "general_egress": False, "approved_services": ["s3", *INTERFACE_SERVICES], "action_scoped_endpoints": True},
+        "fresh_resource_absence_before": not active and not tagged_groups,
     }
 
 
-__all__ = ["AMI_ID", "AwsSurfaceConfig", "AwsSurfaceProvider", "INSTANCE_TYPE", "MAX_DURATION_SECONDS", "MAX_USD", "collect_preflight", "render_surface_user_data"]
+__all__ = ["AMI_ID", "AMI_OWNER_ID", "ACTION_ID_RE", "AwsSurfaceConfig", "AwsSurfaceProvider", "INTERFACE_SERVICES", "INSTANCE_TYPE", "MAX_DURATION_SECONDS", "MAX_USD", "collect_preflight", "render_surface_user_data", "validate_action_id"]

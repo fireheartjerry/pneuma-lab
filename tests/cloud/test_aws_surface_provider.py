@@ -7,12 +7,22 @@ from pneuma_lab.cloud.production_controller import ProductionSubmission
 
 
 class _FakeEc2:
+    def describe_images(self, **kwargs):
+        assert kwargs == {"ImageIds": [aws_surface_provider.AMI_ID]}
+        return {"Images": [{"ImageId": aws_surface_provider.AMI_ID, "OwnerId": aws_surface_provider.AMI_OWNER_ID, "Architecture": "x86_64", "RootDeviceName": "/dev/xvda", "RootDeviceType": "ebs", "State": "available"}]}
+
     def describe_instance_type_offerings(self, **kwargs):
         assert kwargs == {
             "LocationType": "availability-zone",
             "Filters": [{"Name": "instance-type", "Values": ["m7i.large"]}],
         }
         return {"InstanceTypeOfferings": [{"Location": "us-east-1a"}]}
+
+    def describe_instances(self, **kwargs):
+        return {"Reservations": []}
+
+    def describe_security_groups(self, **kwargs):
+        return {"SecurityGroups": []}
 
 
 class _FakeSts:
@@ -85,40 +95,34 @@ def test_surface_bootstrap_logs_into_ecr_without_persisting_credentials() -> Non
 
     user_data = aws_surface_provider.render_surface_user_data(config)
 
-    assert "dnf install -y docker\n" in user_data
+    assert "dnf install" not in user_data
     assert "aws ecr get-login-password --region 'us-east-1' | docker login" in user_data
     assert "awscli2" not in user_data
     assert "rm -f \"$ROOT/image-refs.json\" /root/.docker/config.json" in user_data
-    assert "--network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges" in user_data
+    assert "--network none --read-only --tmpfs /tmp --cap-drop ALL" in user_data
+    assert "--security-opt no-new-privileges" in user_data
+    assert "AWS-RunShellScript" not in user_data
     assert '\n"$ROOT/status.json"\n' not in user_data
 
 
-def test_iam_profile_propagation_error_is_narrowly_classified() -> None:
-    class _Error(Exception):
-        response = {
-            "Error": {
-                "Code": "InvalidParameterValue",
-                "Message": "Value ... for parameter iamInstanceProfile.name is invalid",
-            }
-        }
+def test_action_id_is_fail_closed_and_immutable() -> None:
+    aws_surface_provider.validate_action_id("FIXTURE-NONSCI-20260805-v2-a1b2c3d4")
 
-    assert aws_surface_provider._is_iam_profile_propagation_error(_Error())
+    import pytest
 
-    class _OtherError(Exception):
-        response = {"Error": {"Code": "InvalidParameterValue", "Message": "invalid instance type"}}
-
-    assert not aws_surface_provider._is_iam_profile_propagation_error(_OtherError())
+    with pytest.raises(Exception):
+        aws_surface_provider.validate_action_id("official-surface-e2e-20260805")
 
 
-def test_teardown_treats_an_already_absent_instance_as_success() -> None:
+def test_absent_error_classifier_is_narrow() -> None:
     class _Absent(Exception):
         response = {"Error": {"Code": "InvalidInstanceID.NotFound"}}
 
     class _Other(Exception):
         response = {"Error": {"Code": "UnauthorizedOperation"}}
 
-    assert aws_surface_provider._is_absent_instance_error(_Absent())
-    assert not aws_surface_provider._is_absent_instance_error(_Other())
+    assert aws_surface_provider._absent(_Absent(), "InvalidInstanceID.NotFound")
+    assert not aws_surface_provider._absent(_Other(), "InvalidInstanceID.NotFound")
 
 
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
@@ -152,6 +156,15 @@ def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     provider.command_id = None
     provider.instance_id = None
     provider.last_status = None
+    provider.external_deadline_epoch = None
+    provider.ssm_online_seen = True
+    provider.provider_responses = []
+
+    from types import SimpleNamespace
+
+    provider.config = SimpleNamespace(evidence_dir=None)
+    provider.document_name = "pneuma-test-document"
+    provider.document_version = "1"
 
     submission = ProductionSubmission("instance-1", ("instance-1",))
     first = provider.observe(submission)

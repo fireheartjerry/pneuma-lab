@@ -24,9 +24,9 @@ def test_aws_surface_evidence_is_scoped_to_one_action(tmp_path) -> None:
     assert first == tmp_path / "evidence/production-surface-e2e/surface-action-1"
     with pytest.raises(CloudManifestError, match="single safe path component"):
         run_production_surface_aws._action_evidence_root(tmp_path, "../outside")
-    with pytest.raises(CloudManifestError, match="canonical official-surface-e2e-YYYYMMDD"):
+    with pytest.raises(CloudManifestError, match="FIXTURE-NONSCI-YYYYMMDD-v2"):
         run_production_surface_aws._validate_action_id("official-surface-e2e-20260804-repair")
-    run_production_surface_aws._validate_action_id("official-surface-e2e-20260805")
+    run_production_surface_aws._validate_action_id("FIXTURE-NONSCI-20260805-v2-a1b2c3d4")
 
 
 def test_surface_e2e_references_immutable_image_receipts(tmp_path) -> None:
@@ -38,9 +38,7 @@ def test_surface_e2e_references_immutable_image_receipts(tmp_path) -> None:
     receipt_path.parent.mkdir(parents=True)
     receipt_path.write_bytes(run_production_surface_aws.canonical_bytes(receipt))
 
-    refs = run_production_surface_aws._immutable_image_receipt_refs(
-        tmp_path, (receipt,)
-    )
+    refs = run_production_surface_aws._immutable_image_receipt_refs(tmp_path, receipt_path, (receipt,))
 
     assert receipt["surface_e2e_status"] == "pending_bounded_surface_e2e"
     assert refs[0]["sha256"] == hashlib.sha256(receipt_path.read_bytes()).hexdigest()
