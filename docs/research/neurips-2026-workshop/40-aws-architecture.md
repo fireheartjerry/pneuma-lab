@@ -30,3 +30,27 @@ The committed provider selection is static. Terraform L1 evidence, the
 read-only bootstrap account plan in receipt 52, and any later compute L3 plan
 remain distinct. No compute `apply`, spending, pilot authorization, or
 experiment execution is authorized or performed.
+
+## Current amendment — repaired production role surface — 2026-08-04
+
+The historical static-contract statements above remain the architecture
+baseline; this amendment is the current status for the implemented production
+role surface. The passed action-019 two-L40S qualification remains a separate
+qualification receipt. It is not official-study evidence.
+
+The production controller, model-server, and benchmark-worker images were
+rebuilt from repaired commit
+`c352c9e0e4459c80cddfbf84cce94d0b4c79aaa4` and passed one fresh bounded,
+non-scientific AWS surface E2E using the concrete `m7i.large` on-demand SSM
+binding. The action proved one-submit/restart reconciliation,
+observation-error preservation, role receipt validation, and explicit
+teardown. It created no official model or benchmark workload. Fresh provider
+absence is sealed in the action teardown receipt; retained ECR images and
+SBOMs are intentional.
+
+This closes the production-surface E2E gap, not the scientific E2E gate. The
+primary two-worker `g6e.2xlarge` official topology remains separately gated by
+the live eligible-roster ceremony, repaired C120/C160 power validation and
+registered tier rule, final packet/assignment/detectability/blinding/analysis
+receipts, separately signed official authority, and hostile Step-14 review.
+Official P0/Step 4B remains unrun and launch-blocked.

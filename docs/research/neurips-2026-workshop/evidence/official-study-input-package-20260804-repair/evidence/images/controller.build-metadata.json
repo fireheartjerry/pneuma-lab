@@ -1,0 +1,10 @@
+{
+  "buildx.build.ref": "repro013/repro0130/cn70683ifnumy73zmlhmky18s",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:5c924477a6d53a2d402f7be8e0cadc0420b1fd76cf4439e1d785a4cad63d79b8",
+    "size": 856
+  },
+  "containerimage.digest": "sha256:5c924477a6d53a2d402f7be8e0cadc0420b1fd76cf4439e1d785a4cad63d79b8",
+  "image.name": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-official-production-controller:source-c352c9e0e445"
+}

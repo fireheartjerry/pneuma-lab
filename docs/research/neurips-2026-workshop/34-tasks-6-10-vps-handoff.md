@@ -1445,3 +1445,54 @@ authorized. The next work is fresh external input/roster/ceremony/power,
 spend/quota, signed official authorization, packet/assignment/detectability/
 blinding receipts, and hostile Step-14 release review—not another
 qualification launch. No scientific workload or receipt was created here.
+
+## Action-022 — repaired production images, bounded surface E2E, and input candidate — 2026-08-04
+
+This section supersedes the forward-looking “next work” wording above for the
+production-surface slice while preserving the historical action-018 and
+action-019 record. Action-019 remains the passed two-L40S qualification and is
+not official-study evidence. Action-018 remains historical and was not
+reused. The bounded surface action below is a separate production-path
+receipt, not a qualification rerun and not scientific execution.
+
+The pre-outcome statistical-fidelity repair is bound to source commit
+`c352c9e0e4459c80cddfbf84cce94d0b4c79aaa4`. Fresh production role images were
+built with immutable ECR digests, SBOMs, and provenance. The controller,
+model-server, and benchmark-worker image digests are respectively
+`sha256:eb8c8f5bf51e316443212b9e7db57fe9b7596bcf08a6fb00de52f642ad5827cf`,
+`sha256:6b175c1d822af623d77a3241c7d0015854881be63c70940733fe8fd5c3a4854f`,
+and
+`sha256:83f87c3f32aa670a433685b97d59f7b6ab927e6de039f1964a2d6b9e177b00d4`.
+
+Fresh action `official-surface-e2e-20260804` passed the bounded,
+non-scientific production-surface E2E: one m7i.large on-demand instance,
+one submission, restart reconciliation, preserved injected observation
+error, terminal role evidence, and explicit teardown. Projected cost was
+`$0.53` against the `$3.00` ceiling. The action's surface, receipt, status,
+and teardown are retained under
+`evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/`;
+fresh absence evidence is `true` and the action IAM role/profile are absent.
+
+The repaired input package is a schema-validated, non-authorizing candidate.
+Its input-lock digest is
+`7bb584da29f1fb55e5f46133a985bd3c249f154643dad5a3469ae737aee497e7`, analysis
+graph digest is
+`aa4310584d605928e2edcba0828381c97f4aab0e51f115569073b9e22f4a44e4`, and
+candidate run-spec digest is
+`028c39c4e44cf66438df528b64ba73209e49205266e156dfcfbe506b60aa5760`.
+Power report, power tier, and official authorization fields remain null by
+contract. A read-only power preflight returned
+`BLOCKED_NO_LIVE_ELIGIBLE_CONFIRMATION_CEREMONY`; neither C120 nor C160 was
+run and no report, tier, or authority receipt was minted.
+
+Current terminology is explicit: the production implementation and bounded
+production-surface E2E are complete; Tasks 6–10 remain
+`implementation_complete; E2E_pending` for their scientific lineage; bounded
+Step 4A remains implementation-verification only; Task 10 is release
+preparation, not a scientific result; and official Step 4B/P0 remains unrun,
+separately authorized, and `launch_blocked`. Remaining work is the live
+eligible-roster ceremony, repaired C120/C160 power validation and selection,
+packet/assignment/detectability/blinding/analysis receipts, separately signed
+official authority, and hostile Step-14 release review.
+
+Closure: `65-repaired-production-surface-and-input-closure-20260804.md`.

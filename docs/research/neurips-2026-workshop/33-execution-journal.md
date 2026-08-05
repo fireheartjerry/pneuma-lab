@@ -7648,3 +7648,55 @@ run binding created before the repair. A fresh production image, C120/C160
 power finalisation, run specification, and official authorization must bind the
 repaired digests before launch. Full rationale:
 `docs/research/neurips-2026-workshop/64-pre-outcome-statistical-fidelity-repair-20260804.md`.
+
+## EJ-20260804-repaired-production-surface-and-input-candidate
+
+- **Source and images:** After the pre-outcome statistical-fidelity repair,
+  the three production role images were rebuilt from
+  `c352c9e0e4459c80cddfbf84cce94d0b4c79aaa4`. The immutable image digests are
+  controller
+  `sha256:eb8c8f5bf51e316443212b9e7db57fe9b7596bcf08a6fb00de52f642ad5827cf`,
+  model-server
+  `sha256:6b175c1d822af623d77a3241c7d0015854881be63c70940733fe8fd5c3a4854f`,
+  and benchmark-worker
+  `sha256:83f87c3f32aa670a433685b97d59f7b6ab927e6de039f1964a2d6b9e177b00d4`.
+  Syft SPDX and BuildKit provenance receipts were validated against the
+  canonical image set. The build ran no model or benchmark.
+- **Bounded AWS surface action:** Fresh action
+  `official-surface-e2e-20260804` used one on-demand m7i.large surface
+  instance and the non-scientific handshake. It submitted once, restarted
+  against the same durable controller state, injected and preserved one
+  observation error, reached `workload_terminal`, and entered explicit
+  teardown. The receipt reports `$0.53` projected cost against a `$3.00`
+  ceiling and `COMPLETE` teardown. Instance
+  `i-0cdc9c7fca9514289`, security group `sg-025ca8ce5b31c18ff`, action IAM
+  role, and instance profile are recorded in the teardown evidence; fresh
+  absence is true and the role/profile readbacks returned `NoSuchEntity`.
+- **Evidence hashes:** Surface
+  `0b401d505368505be161ead2fd54d8016bc7fd12aeabe3b4be3e8f8e93114f35`;
+  E2E receipt
+  `7b36a091252c945d11ace5ac02d7566837b75873d8137565899abab6e64aec18`;
+  status
+  `922a4d26d3f421fc1a1c3707670ae6d3dc8d378bb0a50a1c5074538d29b5e6ab`;
+  teardown
+  `dc82ae43653ba4a487a2f655671a96953ff07e9a85ef9c2e7c4f1e803b4413a6`.
+- **Candidate package:** The fresh non-authorizing candidate binds input lock
+  `7bb584da29f1fb55e5f46133a985bd3c249f154643dad5a3469ae737aee497e7`,
+  analysis graph
+  `aa4310584d605928e2edcba0828381c97f4aab0e51f115569073b9e22f4a44e4`,
+  image-set
+  `2497d0e5a30b012c6b9d3ce0e025094a511626d5d5ed58de99078d5603f5c226`, and
+  run-spec candidate
+  `028c39c4e44cf66438df528b64ba73209e49205266e156dfcfbe506b60aa5760`.
+  The package remains `pre_launch_candidate` with `authorizing: false`.
+- **Power and authority boundary:** A read-only check of the candidate roster
+  validated the schema and stopped with
+  `BLOCKED_NO_LIVE_ELIGIBLE_CONFIRMATION_CEREMONY`. The registered C120/C160
+  grid and finalizer were not invoked; no power report, tier receipt, or
+  official authorization was created. The official P0/Step-4B study remains
+  unrun and separately authorized.
+
+No official scientific workload, model/benchmark execution, pilot, canonical
+P0 grid, live roster ceremony, unblind, scientific analysis, or claim
+promotion occurred in this action. This journal entry is forensic and does
+not mint authority.

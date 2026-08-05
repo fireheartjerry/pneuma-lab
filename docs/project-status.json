@@ -478,7 +478,13 @@
                 "docs/research/neurips-2026-workshop/evidence/step5b-real-input-lock-20260801/input-lock.json",
                 "docs/research/neurips-2026-workshop/evidence/step5b-input-lock-portability-20260801.json",
                 "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/closure.json",
-                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/isolation-receipt.json"
+                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/isolation-receipt.json",
+                "docs/research/neurips-2026-workshop/65-repaired-production-surface-and-input-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/66-unsigned-p0-step14-checklist-repaired-prelaunch-20260804.md",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/inputs/input-lock.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/inputs/analysis-graph.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/run-spec-candidate.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/input-package.json"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
@@ -556,7 +562,14 @@
                 "docs/research/neurips-2026-workshop/60-pre-experiment-qualification-closure-20260804.md",
                 "docs/research/neurips-2026-workshop/61-unsigned-p0-step14-checklist-20260804.md",
                 "docs/research/neurips-2026-workshop/62-pre-experiment-qualification-closure-20260804.md",
-                "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md"
+                "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/65-repaired-production-surface-and-input-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images/controller.receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images/model-server.receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images/benchmark-worker.receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
@@ -572,6 +585,9 @@
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
                 "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/64-pre-outcome-statistical-fidelity-repair-20260804.md",
+                "docs/research/neurips-2026-workshop/65-repaired-production-surface-and-input-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/66-unsigned-p0-step14-checklist-repaired-prelaunch-20260804.md",
                 "schemas/cloud-production-run-spec.schema.json",
                 "schemas/cloud-production-worker-evidence.schema.json",
                 "schemas/cloud-production-raw-worker-output.schema.json",
@@ -593,7 +609,19 @@
                 "tests/cloud/test_production_path.py",
                 "tests/cloud/test_production_controller.py",
                 "tests/resampling_null/test_ceremony_preflight.py",
-                "tests/resampling_null/test_power_tier_selection.py"
+                "tests/resampling_null/test_power_tier_selection.py",
+                "scripts/research/build_production_images.py",
+                "scripts/research/build_official_input_package.py",
+                "scripts/research/run_production_surface_aws.py",
+                "tests/cloud/test_production_surface_e2e.py",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/inputs/input-lock.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/inputs/analysis-graph.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/run-spec-candidate.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/input-package.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/controller-state.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
