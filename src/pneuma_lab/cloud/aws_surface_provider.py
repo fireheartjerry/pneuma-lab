@@ -347,6 +347,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.document_name = _name(f"pneuma-surface-v2-status-{config.action_id}")
         self.document_version = "1"
         self.document_sha256: str | None = None
+        self.document_provider_hash: str | None = None
         if config.evidence_dir is not None:
             config.evidence_dir.mkdir(parents=True, exist_ok=True)
 
@@ -631,10 +632,22 @@ class AwsSurfaceProvider(ProductionJobProvider):
         content = _fixed_ssm_document()
         raw = _canonical(content)
         self.document_sha256 = _sha_bytes(raw)
-        self._call("create_ssm_document", self.ssm.create_document, Content=raw.decode("utf-8"), Name=self.document_name, DocumentType="Command", DocumentFormat="JSON", TargetType="/AWS::EC2::Instance", Tags=self._tags())
+        created = self._call("create_ssm_document", self.ssm.create_document, Content=raw.decode("utf-8"), Name=self.document_name, DocumentType="Command", DocumentFormat="JSON", TargetType="/AWS::EC2::Instance", Tags=self._tags())
+        provider_hash = created.get("DocumentDescription", {}).get("Hash")
+        if not isinstance(provider_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", provider_hash):
+            raise CloudManifestError("custom SSM document provider hash is missing or malformed")
+        self.document_provider_hash = provider_hash
         document = self._call("get_ssm_document", self.ssm.get_document, Name=self.document_name, DocumentVersion=self.document_version, DocumentFormat="JSON")
-        if document.get("Status") != "Active" or document.get("DocumentVersion") != self.document_version or document.get("Hash") != self.document_sha256:
+        try:
+            returned_content = json.loads(str(document.get("Content", "")))
+        except json.JSONDecodeError as exc:
+            raise CloudManifestError("custom SSM document content is not JSON") from exc
+        if document.get("Status") != "Active" or document.get("DocumentVersion") != self.document_version or returned_content != content:
             raise CloudManifestError("custom SSM document hash/version did not round-trip")
+        described = self._call("describe_ssm_document", self.ssm.describe_document, Name=self.document_name, DocumentVersion=self.document_version)
+        metadata = described.get("Document", {})
+        if metadata.get("Status") != "Active" or metadata.get("DocumentVersion") != self.document_version or metadata.get("Hash") != self.document_provider_hash or metadata.get("HashType") != "Sha256":
+            raise CloudManifestError("custom SSM document provider hash/version did not round-trip")
 
     def _watchdog_path(self) -> Path:
         return Path(__file__).resolve().parents[3] / "scripts/research/fixture_v2_watchdog.py"
@@ -707,6 +720,13 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if set(self.endpoint_ids) != set(INTERFACE_SERVICES):
             raise CloudManifestError("restart reconciliation found an incomplete interface endpoint set")
         self._capture_endpoint_bindings()
+        self.document_sha256 = _sha_bytes(_canonical(_fixed_ssm_document()))
+        described = self._call("describe_ssm_document.restart", self.ssm.describe_document, Name=self.document_name, DocumentVersion=self.document_version)
+        metadata = described.get("Document", {})
+        provider_hash = metadata.get("Hash")
+        if metadata.get("Status") != "Active" or metadata.get("DocumentVersion") != self.document_version or not isinstance(provider_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", provider_hash) or metadata.get("HashType") != "Sha256":
+            raise CloudManifestError("restart reconciliation found an invalid custom SSM document binding")
+        self.document_provider_hash = provider_hash
         self._verify_effective_launch(instance_id)
 
     def submit(self, *, client_token: str, allocation: Mapping[str, Sequence[str]]) -> ProductionSubmission:
@@ -828,6 +848,21 @@ class AwsSurfaceProvider(ProductionJobProvider):
             raise
         return cast(Sequence[Mapping[str, object]], response.get("NetworkInterfaces", []))
 
+    def _instance_network_interfaces_present(self) -> Sequence[Mapping[str, object]]:
+        if not self.instance_network_interface_ids:
+            return []
+        try:
+            response = self._call(
+                "describe_instance_network_interfaces",
+                self.ec2.describe_network_interfaces,
+                NetworkInterfaceIds=list(dict.fromkeys(self.instance_network_interface_ids)),
+            )
+        except Exception as exc:
+            if _absent(exc, "InvalidNetworkInterfaceID.NotFound"):
+                return []
+            raise
+        return cast(Sequence[Mapping[str, object]], response.get("NetworkInterfaces", []))
+
     def _stop_watchdog(self) -> None:
         if self.watchdog is None:
             return
@@ -924,7 +959,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._stop_watchdog()
         try:
             self._wait_absent("EBS volumes", self._volumes_present, timeout=180)
-            self._wait_absent("network interfaces", self._network_interfaces_present, timeout=180)
+            self._wait_absent("instance network interfaces", self._instance_network_interfaces_present, timeout=180)
         except Exception as exc:
             cleanup_error = cleanup_error or exc
         try:
@@ -970,7 +1005,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             "security_group_ids": [value for value in (self.instance_security_group_id, self.endpoint_security_group_id) if value],
             "iam_role": self.role_name,
             "instance_profile": self.profile_name,
-            "ssm_document": {"name": self.document_name, "version": self.document_version, "sha256": self.document_sha256},
+            "ssm_document": {"name": self.document_name, "version": self.document_version, "sha256": self.document_sha256, "provider_hash": self.document_provider_hash},
             "watchdog": {"pid": self.watchdog_pid, "source_sha256": self.watchdog_source_sha256, "deadline_epoch": self.external_deadline_epoch},
             "resource_ids": {"instances": [instance_id] if instance_id else [], "volumes": list(self.instance_volume_ids), "network_interfaces": list(dict.fromkeys(self.instance_network_interface_ids + self.endpoint_network_interface_ids))},
             "provider_response_hashes": list(self.provider_responses),
