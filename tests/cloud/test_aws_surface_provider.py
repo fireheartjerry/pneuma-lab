@@ -213,6 +213,33 @@ def test_security_group_delete_retries_only_dependency_violation(monkeypatch) ->
     assert provider.ec2.calls == 2
 
 
+def test_security_group_pair_revocation_retains_both_directions() -> None:
+    from types import SimpleNamespace
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.operations = []
+
+        def revoke_security_group_ingress(self, **kwargs):
+            self.operations.append(("ingress", kwargs))
+            return {}
+
+        def revoke_security_group_egress(self, **kwargs):
+            self.operations.append(("egress", kwargs))
+            return {}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.endpoint_security_group_id = "sg-endpoint"
+    provider.instance_security_group_id = "sg-instance"
+    provider.config = SimpleNamespace(evidence_dir=None)
+
+    provider._revoke_security_group_pair()
+
+    assert [operation for operation, _ in provider.ec2.operations] == ["ingress", "egress"]
+
+
 def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
     assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
         {"EnableDnsSupport": {"Value": True}}, "EnableDnsSupport"

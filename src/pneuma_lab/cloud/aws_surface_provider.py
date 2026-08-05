@@ -1024,20 +1024,6 @@ class AwsSurfaceProvider(ProductionJobProvider):
         except Exception as exc:
             if not _absent(exc, "InvalidPermission.NotFound"):
                 raise
-
-    def _delete_security_group(self, operation: str, group_id: str) -> None:
-        deadline = time.time() + 60
-        while True:
-            try:
-                self._call(operation, self.ec2.delete_security_group, GroupId=group_id)
-                return
-            except Exception as exc:
-                response = getattr(exc, "response", {})
-                error = response.get("Error", {}) if isinstance(response, Mapping) else {}
-                code = error.get("Code") if isinstance(error, Mapping) else None
-                if code != "DependencyViolation" or time.time() >= deadline:
-                    raise
-                time.sleep(3)
         try:
             self._call(
                 "revoke_instance_endpoint_egress",
@@ -1055,6 +1041,20 @@ class AwsSurfaceProvider(ProductionJobProvider):
         except Exception as exc:
             if not _absent(exc, "InvalidPermission.NotFound"):
                 raise
+
+    def _delete_security_group(self, operation: str, group_id: str) -> None:
+        deadline = time.time() + 60
+        while True:
+            try:
+                self._call(operation, self.ec2.delete_security_group, GroupId=group_id)
+                return
+            except Exception as exc:
+                response = getattr(exc, "response", {})
+                error = response.get("Error", {}) if isinstance(response, Mapping) else {}
+                code = error.get("Code") if isinstance(error, Mapping) else None
+                if code != "DependencyViolation" or time.time() >= deadline:
+                    raise
+                time.sleep(3)
 
     def _delete_iam(self) -> None:
         for function, kwargs, operation in (
