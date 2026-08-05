@@ -59,6 +59,16 @@ def _is_iam_profile_propagation_error(exc: Exception) -> bool:
     return error.get("Code") == "InvalidParameterValue" and "iamInstanceProfile" in str(error.get("Message", ""))
 
 
+def _is_absent_instance_error(exc: Exception) -> bool:
+    """Treat a previously terminated instance as an idempotent cleanup state."""
+
+    response = getattr(exc, "response", {})
+    if not isinstance(response, Mapping):
+        return False
+    error = response.get("Error", {})
+    return isinstance(error, Mapping) and error.get("Code") == "InvalidInstanceID.NotFound"
+
+
 def _name(value: str, *, max_length: int = 63) -> str:
     safe = re.sub(r"[^A-Za-z0-9+=,.@_-]", "-", value)
     return safe[:max_length].rstrip("-") or "pneuma-surface"
@@ -337,11 +347,18 @@ class AwsSurfaceProvider(ProductionJobProvider):
     def teardown(self, submission: ProductionSubmission | None) -> Mapping[str, Any] | None:
         instance_id = submission.parent_job_id if submission is not None else self.instance_id
         if instance_id:
-            self.ec2.terminate_instances(InstanceIds=[instance_id])
+            instance_absent = False
             try:
-                self.ec2.get_waiter("instance_terminated").wait(InstanceIds=[instance_id], WaiterConfig={"Delay": 5, "MaxAttempts": 36})
-            except Exception:
-                pass
+                self.ec2.terminate_instances(InstanceIds=[instance_id])
+            except self.ec2.exceptions.ClientError as exc:
+                if not _is_absent_instance_error(exc):
+                    raise
+                instance_absent = True
+            if not instance_absent:
+                try:
+                    self.ec2.get_waiter("instance_terminated").wait(InstanceIds=[instance_id], WaiterConfig={"Delay": 5, "MaxAttempts": 36})
+                except Exception:
+                    pass
         if self.security_group_id is None:
             groups = self.ec2.describe_security_groups(Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [self.config.action_id]}])["SecurityGroups"]
             self.security_group_id = groups[0]["GroupId"] if groups else None

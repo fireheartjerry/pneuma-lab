@@ -110,6 +110,17 @@ def test_iam_profile_propagation_error_is_narrowly_classified() -> None:
     assert not aws_surface_provider._is_iam_profile_propagation_error(_OtherError())
 
 
+def test_teardown_treats_an_already_absent_instance_as_success() -> None:
+    class _Absent(Exception):
+        response = {"Error": {"Code": "InvalidInstanceID.NotFound"}}
+
+    class _Other(Exception):
+        response = {"Error": {"Code": "UnauthorizedOperation"}}
+
+    assert aws_surface_provider._is_absent_instance_error(_Absent())
+    assert not aws_surface_provider._is_absent_instance_error(_Other())
+
+
 def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
     class _Exceptions:
         class InvalidInstanceId(Exception):
