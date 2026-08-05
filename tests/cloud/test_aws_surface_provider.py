@@ -160,6 +160,15 @@ def test_absent_error_classifier_is_narrow() -> None:
     assert not aws_surface_provider._absent(_Other(), "InvalidInstanceID.NotFound")
 
 
+def test_network_interface_delete_binding_uses_ec2_attachment_shape() -> None:
+    assert aws_surface_provider._network_interface_delete_on_termination(
+        {"Attachment": {"DeleteOnTermination": True}}
+    )
+    assert not aws_surface_provider._network_interface_delete_on_termination(
+        {"DeleteOnTermination": True}
+    )
+
+
 def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
     assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
         {"EnableDnsSupport": {"Value": True}}, "EnableDnsSupport"

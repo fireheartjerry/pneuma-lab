@@ -98,6 +98,13 @@ def _absent(exc: Exception, *codes: str) -> bool:
     return isinstance(error, Mapping) and error.get("Code") in set(codes)
 
 
+def _network_interface_delete_on_termination(interface: Mapping[str, object]) -> bool:
+    """Read EC2's effective ENI deletion flag from its attachment shape."""
+
+    attachment = interface.get("Attachment")
+    return isinstance(attachment, Mapping) and attachment.get("DeleteOnTermination") is True
+
+
 def validate_action_id(action_id: str) -> None:
     if not ACTION_ID_RE.fullmatch(action_id):
         raise CloudManifestError(
@@ -709,7 +716,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if not str(profile).endswith(f"instance-profile/{self.profile_name}"):
             raise CloudManifestError("effective IAM profile binding differs")
         interfaces = instance.get("NetworkInterfaces", [])
-        if len(interfaces) != 1 or interfaces[0].get("Association") or interfaces[0].get("Ipv6Addresses") or interfaces[0].get("DeleteOnTermination") is not True or interfaces[0].get("Groups", [{}])[0].get("GroupId") != self.instance_security_group_id:
+        if len(interfaces) != 1 or interfaces[0].get("Association") or interfaces[0].get("Ipv6Addresses") or not _network_interface_delete_on_termination(interfaces[0]) or interfaces[0].get("Groups", [{}])[0].get("GroupId") != self.instance_security_group_id:
             raise CloudManifestError("effective network interface is not private/action-scoped")
         mappings = instance.get("BlockDeviceMappings", [])
         root = next((item for item in mappings if item.get("DeviceName") == AMI_ROOT_DEVICE), None)
