@@ -559,7 +559,12 @@ class AwsSurfaceProvider(ProductionJobProvider):
         elif service in {"ecr.api", "ecr.dkr"}:
             actions = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
             statement: list[dict[str, object]] = [{"Effect": "Allow", "Principal": "*", "Action": actions, "Resource": repos}]
-            if service == "ecr.api":
+            # AWS recommends the same pull policy on both ECR interface
+            # endpoints.  Docker authenticates against the registry endpoint
+            # after the CLI obtains its token from the API endpoint; omitting
+            # GetAuthorizationToken from ecr.dkr makes that registry handshake
+            # fail closed (observed as a client-side TLS timeout).
+            if service in {"ecr.api", "ecr.dkr"}:
                 statement.append({"Effect": "Allow", "Principal": "*", "Action": ["ecr:GetAuthorizationToken"], "Resource": "*"})
         elif service == "ssm":
             statement = [{"Effect": "Allow", "Principal": "*", "Action": ["ssm:UpdateInstanceInformation", "ssm:GetDeployablePatchSnapshotForInstance", "ssm:GetManifest", "ssm:GetParameter", "ssm:GetParameters", "ssm:ListAssociations", "ssm:ListInstanceAssociations", "ssm:PutInventory", "ssm:PutComplianceItems", "ssm:PutConfigurePackageResult", "ssm:UpdateAssociationStatus", "ssm:UpdateInstanceAssociationStatus"], "Resource": "*"}]
