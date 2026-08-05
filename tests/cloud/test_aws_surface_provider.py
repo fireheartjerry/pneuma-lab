@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from pneuma_lab.cloud import aws_surface_provider
+from pneuma_lab.cloud.production_controller import ProductionSubmission
 
 
 class _FakeEc2:
@@ -89,6 +90,7 @@ def test_surface_bootstrap_logs_into_ecr_without_persisting_credentials() -> Non
     assert "awscli2" not in user_data
     assert "rm -f \"$ROOT/image-refs.json\" /root/.docker/config.json" in user_data
     assert "--network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges" in user_data
+    assert '\n"$ROOT/status.json"\n' not in user_data
 
 
 def test_iam_profile_propagation_error_is_narrowly_classified() -> None:
@@ -106,3 +108,44 @@ def test_iam_profile_propagation_error_is_narrowly_classified() -> None:
         response = {"Error": {"Code": "InvalidParameterValue", "Message": "invalid instance type"}}
 
     assert not aws_surface_provider._is_iam_profile_propagation_error(_OtherError())
+
+
+def test_observation_uses_a_fresh_ssm_status_snapshot() -> None:
+    class _Exceptions:
+        class InvalidInstanceId(Exception):
+            pass
+
+        class InvocationDoesNotExist(Exception):
+            pass
+
+    class _Ssm:
+        exceptions = _Exceptions
+
+        def __init__(self) -> None:
+            self.calls = 0
+            self.statuses = [
+                {"terminal": False, "state": "BOOTSTRAPPING"},
+                {"terminal": True, "state": "SUCCEEDED"},
+            ]
+
+        def send_command(self, **kwargs):
+            self.calls += 1
+            return {"Command": {"CommandId": f"command-{self.calls}"}}
+
+        def get_command_invocation(self, **kwargs):
+            status = self.statuses[self.calls - 1]
+            return {"Status": "Success", "StandardOutputContent": json.dumps(status)}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ssm = _Ssm()
+    provider.command_id = None
+    provider.instance_id = None
+    provider.last_status = None
+
+    submission = ProductionSubmission("instance-1", ("instance-1",))
+    first = provider.observe(submission)
+    second = provider.observe(submission)
+
+    assert first["terminal"] is False
+    assert second["terminal"] is True
+    assert provider.ssm.calls == 2

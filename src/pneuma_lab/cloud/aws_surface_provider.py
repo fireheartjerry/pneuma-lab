@@ -167,7 +167,6 @@ status = {{
 root.write_bytes((json.dumps(status, sort_keys=True, separators=(",", ":")) + "\\n").encode())
 PY
 chmod 644 "$ROOT/status.json" "$ROOT"/roles/*.json
-"$ROOT/status.json"
 """
 
 
@@ -320,6 +319,10 @@ class AwsSurfaceProvider(ProductionJobProvider):
             return {"terminal": False, "provider_state": "SSM_PENDING"}
         if invocation.get("Status") not in {"Success", "Failed", "TimedOut", "Cancelled"}:
             return {"terminal": False, "provider_state": invocation.get("Status", "SSM_UNKNOWN")}
+        # SSM command output is a snapshot.  Do not reuse a successful read
+        # after the status file may have changed; the next observation must
+        # issue a fresh, read-only command.
+        self.command_id = None
         stdout = str(invocation.get("StandardOutputContent", "")).strip()
         try:
             status = json.loads(stdout) if stdout else {"terminal": False, "state": "NO_STATUS"}
