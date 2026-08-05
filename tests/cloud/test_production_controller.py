@@ -49,6 +49,7 @@ class _Provider:
 
     def submit(self, *, client_token: str, allocation: dict[str, tuple[str, ...]]) -> ProductionSubmission:
         assert client_token.startswith("pneuma-production-")
+        assert len(client_token) <= 64
         assert allocation == {"worker-0": ("a",), "worker-1": ("b",)}
         self.submit_count += 1
         return ProductionSubmission("parent-1", ("child-0", "child-1"))

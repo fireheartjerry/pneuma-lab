@@ -131,7 +131,10 @@ class ProductionOrchestrator:
         self.action_id = action_id
         self.run_spec_sha256 = run_spec_sha256
         self.allocation = normalized
-        self.client_token = f"pneuma-production-{run_spec_sha256[:48]}"
+        # EC2 ClientToken is limited to 64 characters.  Keep the stable
+        # provider namespace while retaining enough run-spec entropy for
+        # idempotent restart reconciliation.
+        self.client_token = f"pneuma-production-{run_spec_sha256[:46]}"
 
     def prepare(self) -> ProductionControllerSnapshot:
         if self.store.exists:
