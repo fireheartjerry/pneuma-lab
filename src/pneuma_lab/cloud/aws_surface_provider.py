@@ -49,6 +49,8 @@ _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _ID_RE = re.compile(r"^i-[0-9a-f]+$")
 INSTANCE_READBACK_TIMEOUT_SECONDS = 60
 INSTANCE_READBACK_RETRY_SECONDS = 2
+INSTANCE_TERMINATION_CONFIRM_TIMEOUT_SECONDS = 180
+INSTANCE_TERMINATION_CONFIRM_RETRY_SECONDS = 3
 
 
 def _boto3():
@@ -720,11 +722,29 @@ class AwsSurfaceProvider(ProductionJobProvider):
             raise CloudManifestError("effective network interface is not private/action-scoped")
         mappings = instance.get("BlockDeviceMappings", [])
         root = next((item for item in mappings if item.get("DeviceName") == AMI_ROOT_DEVICE), None)
-        if not root or root.get("Ebs", {}).get("DeleteOnTermination") is not True or root.get("Ebs", {}).get("Encrypted") is not True:
-            raise CloudManifestError("effective root EBS deletion/encryption binding differs")
-        self.instance_volume_ids = [cast(str, item["Ebs"]["VolumeId"]) for item in mappings if item.get("Ebs", {}).get("VolumeId")]
+        root_volume_id = self._verify_effective_root_volume(root)
+        self.instance_volume_ids = [root_volume_id] + [
+            cast(str, item["Ebs"]["VolumeId"])
+            for item in mappings
+            if item.get("Ebs", {}).get("VolumeId") and item.get("Ebs", {}).get("VolumeId") != root_volume_id
+        ]
         self.instance_network_interface_ids = [cast(str, item["NetworkInterfaceId"]) for item in interfaces if item.get("NetworkInterfaceId")]
         self._call("describe_image.effective", self.ec2.describe_images, ImageIds=[self.config.ami_id])
+
+    def _verify_effective_root_volume(self, root: object) -> str:
+        if not isinstance(root, Mapping):
+            raise CloudManifestError("effective root EBS mapping is missing")
+        ebs = root.get("Ebs")
+        if not isinstance(ebs, Mapping) or ebs.get("DeleteOnTermination") is not True:
+            raise CloudManifestError("effective root EBS deletion binding differs")
+        volume_id = ebs.get("VolumeId")
+        if not isinstance(volume_id, str) or not volume_id:
+            raise CloudManifestError("effective root EBS volume identity is missing")
+        response = self._call("describe_volume.effective", self.ec2.describe_volumes, VolumeIds=[volume_id])
+        volumes = response.get("Volumes", [])
+        if len(volumes) != 1 or volumes[0].get("VolumeId") != volume_id or volumes[0].get("Encrypted") is not True:
+            raise CloudManifestError("effective root EBS encryption binding differs")
+        return volume_id
 
     def _probe_run_admission(self, run_kwargs: Mapping[str, object]) -> None:
         deadline = time.time() + 60
@@ -947,14 +967,13 @@ class AwsSurfaceProvider(ProductionJobProvider):
         except Exception as exc:
             if _absent(exc, "InvalidInstanceID.NotFound"):
                 return
-            try:
+            deadline = time.time() + INSTANCE_TERMINATION_CONFIRM_TIMEOUT_SECONDS
+            while True:
                 if self._confirm_instance_terminal(instance_id):
                     return
-            except Exception:
-                # Preserve the original waiter failure.  The confirmation is
-                # diagnostic unless it proves terminal absence exactly.
-                pass
-            raise
+                if time.time() >= deadline:
+                    raise exc
+                time.sleep(INSTANCE_TERMINATION_CONFIRM_RETRY_SECONDS)
 
     def _stop_watchdog(self) -> None:
         if self.watchdog is None:
@@ -1005,6 +1024,20 @@ class AwsSurfaceProvider(ProductionJobProvider):
         except Exception as exc:
             if not _absent(exc, "InvalidPermission.NotFound"):
                 raise
+
+    def _delete_security_group(self, operation: str, group_id: str) -> None:
+        deadline = time.time() + 60
+        while True:
+            try:
+                self._call(operation, self.ec2.delete_security_group, GroupId=group_id)
+                return
+            except Exception as exc:
+                response = getattr(exc, "response", {})
+                error = response.get("Error", {}) if isinstance(response, Mapping) else {}
+                code = error.get("Code") if isinstance(error, Mapping) else None
+                if code != "DependencyViolation" or time.time() >= deadline:
+                    raise
+                time.sleep(3)
         try:
             self._call(
                 "revoke_instance_endpoint_egress",
@@ -1058,10 +1091,15 @@ class AwsSurfaceProvider(ProductionJobProvider):
         try:
             self._delete_action_endpoints()
             self._revoke_security_group_pair()
-            if self.instance_security_group_id:
-                self._call("delete_instance_security_group", self.ec2.delete_security_group, GroupId=self.instance_security_group_id)
-            if self.endpoint_security_group_id:
-                self._call("delete_endpoint_security_group", self.ec2.delete_security_group, GroupId=self.endpoint_security_group_id)
+            for operation, group_id in (
+                ("delete_instance_security_group", self.instance_security_group_id),
+                ("delete_endpoint_security_group", self.endpoint_security_group_id),
+            ):
+                if group_id:
+                    try:
+                        self._delete_security_group(operation, group_id)
+                    except Exception as exc:
+                        cleanup_error = cleanup_error or exc
             if self.route_association_id:
                 try:
                     self._call("disassociate_route_table", self.ec2.disassociate_route_table, AssociationId=self.route_association_id)

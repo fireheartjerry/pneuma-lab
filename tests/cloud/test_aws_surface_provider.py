@@ -169,6 +169,50 @@ def test_network_interface_delete_binding_uses_ec2_attachment_shape() -> None:
     )
 
 
+def test_effective_root_volume_requires_provider_volume_encryption() -> None:
+    from types import SimpleNamespace
+
+    class _Ec2:
+        def describe_volumes(self, **kwargs):
+            assert kwargs == {"VolumeIds": ["vol-0123456789abcdef0"]}
+            return {"Volumes": [{"VolumeId": "vol-0123456789abcdef0", "Encrypted": True}]}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+
+    assert provider._verify_effective_root_volume(
+        {"Ebs": {"DeleteOnTermination": True, "VolumeId": "vol-0123456789abcdef0"}}
+    ) == "vol-0123456789abcdef0"
+
+
+def test_security_group_delete_retries_only_dependency_violation(monkeypatch) -> None:
+    class _DependencyViolation(Exception):
+        response = {"Error": {"Code": "DependencyViolation"}}
+
+    class _Ec2:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def delete_security_group(self, **kwargs):
+            assert kwargs == {"GroupId": "sg-0123456789abcdef0"}
+            self.calls += 1
+            if self.calls == 1:
+                raise _DependencyViolation()
+            return {}
+
+    provider = object.__new__(aws_surface_provider.AwsSurfaceProvider)
+    provider.ec2 = _Ec2()
+    provider.provider_responses = []
+    provider.config = type("Config", (), {"evidence_dir": None})()
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
+
+    provider._delete_security_group("delete_test_security_group", "sg-0123456789abcdef0")
+
+    assert provider.ec2.calls == 2
+
+
 def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
     assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
         {"EnableDnsSupport": {"Value": True}}, "EnableDnsSupport"
@@ -278,7 +322,7 @@ def test_waiter_race_requires_explicit_terminal_confirmation() -> None:
     ]
 
 
-def test_waiter_failure_is_not_hidden_when_instance_remains_nonterminal() -> None:
+def test_waiter_failure_is_not_hidden_when_instance_remains_nonterminal(monkeypatch) -> None:
     from types import SimpleNamespace
 
     class _WaiterFailure(Exception):
@@ -299,6 +343,10 @@ def test_waiter_failure_is_not_hidden_when_instance_remains_nonterminal() -> Non
     provider.ec2 = _Ec2()
     provider.provider_responses = []
     provider.config = SimpleNamespace(action_id="FIXTURE-NONSCI-20260805-v2-a1b2c3d4", evidence_dir=None)
+
+    times = iter((0.0, 181.0))
+    monkeypatch.setattr(aws_surface_provider.time, "time", lambda: next(times))
+    monkeypatch.setattr(aws_surface_provider.time, "sleep", lambda seconds: None)
 
     import pytest
 
