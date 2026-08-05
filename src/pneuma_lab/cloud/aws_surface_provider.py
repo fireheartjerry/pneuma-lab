@@ -107,6 +107,56 @@ def _network_interface_delete_on_termination(interface: Mapping[str, object]) ->
     return isinstance(attachment, Mapping) and attachment.get("DeleteOnTermination") is True
 
 
+def _security_group_rule_keys(rules: object) -> set[tuple[object, ...]]:
+    """Normalize AWS security-group rules for an exact contract comparison."""
+
+    if not isinstance(rules, Sequence) or isinstance(rules, (str, bytes)):
+        raise CloudManifestError("security-group rules must be a sequence")
+    result: set[tuple[object, ...]] = set()
+    for rule in rules:
+        if not isinstance(rule, Mapping):
+            raise CloudManifestError("security-group rule must be an object")
+        pairs = rule.get("UserIdGroupPairs", [])
+        ranges = rule.get("IpRanges", [])
+        prefixes = rule.get("PrefixListIds", [])
+        if not all(isinstance(value, Sequence) and not isinstance(value, (str, bytes)) for value in (pairs, ranges, prefixes)):
+            raise CloudManifestError("security-group rule collections are malformed")
+        result.add(
+            (
+                rule.get("IpProtocol"),
+                rule.get("FromPort"),
+                rule.get("ToPort"),
+                tuple(sorted(str(item.get("GroupId")) for item in pairs if isinstance(item, Mapping))),
+                tuple(sorted(str(item.get("CidrIp")) for item in ranges if isinstance(item, Mapping))),
+                tuple(sorted(str(item.get("PrefixListId")) for item in prefixes if isinstance(item, Mapping))),
+            )
+        )
+    return result
+
+
+def _validate_surface_security_group_contract(
+    groups: Sequence[Mapping[str, object]], *, endpoint_group_id: str, instance_group_id: str
+) -> None:
+    """Require endpoint-only TCP/443 traffic and no instance ingress."""
+
+    by_id = {str(group.get("GroupId")): group for group in groups}
+    if set(by_id) != {endpoint_group_id, instance_group_id}:
+        raise CloudManifestError("surface security-group set does not match the action binding")
+    endpoint = by_id[endpoint_group_id]
+    instance = by_id[instance_group_id]
+    endpoint_pair = ("tcp", 443, 443, (instance_group_id,), (), ())
+    endpoint_service = ("tcp", 443, 443, (), ("0.0.0.0/0",), ())
+    instance_pair = ("tcp", 443, 443, (endpoint_group_id,), (), ())
+    if _security_group_rule_keys(endpoint.get("IpPermissions", [])) != {endpoint_pair}:
+        raise CloudManifestError("endpoint security group ingress is not the exact instance TCP/443 rule")
+    if _security_group_rule_keys(endpoint.get("IpPermissionsEgress", [])) != {endpoint_service}:
+        raise CloudManifestError("endpoint security group egress lacks the exact service TCP/443 rule")
+    if _security_group_rule_keys(instance.get("IpPermissions", [])):
+        raise CloudManifestError("instance security group must have no ingress")
+    if _security_group_rule_keys(instance.get("IpPermissionsEgress", [])) != {instance_pair}:
+        raise CloudManifestError("instance security group egress is not the exact endpoint TCP/443 rule")
+
+
 def validate_action_id(action_id: str) -> None:
     if not ACTION_ID_RE.fullmatch(action_id):
         raise CloudManifestError(
@@ -177,7 +227,7 @@ def render_surface_user_data(
             if parsed.version != 4 or not parsed.is_private or parsed.is_loopback or parsed.is_link_local:
                 raise CloudManifestError("action endpoint host binding must use a private non-loopback IPv4 address")
             grouped.setdefault(address, []).append(host)
-        host_lines = "\n# Action-owned endpoint bindings; no public DNS or egress is permitted.\n"
+        host_lines = "\n# Action-owned endpoint bindings; no public DNS or general egress is permitted.\n"
         host_lines += "\n".join(f"{address}\t{' '.join(hosts)}" for address, hosts in sorted(grouped.items()))
         host_lines += "\n"
     initial_status = {
@@ -480,7 +530,25 @@ class AwsSurfaceProvider(ProductionJobProvider):
             if rules:
                 self._call("revoke_security_group_egress", self.ec2.revoke_security_group_egress, GroupId=group_id, IpPermissions=rules)
         self._call("authorize_endpoint_ingress", self.ec2.authorize_security_group_ingress, GroupId=self.endpoint_security_group_id, IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "UserIdGroupPairs": [{"GroupId": self.instance_security_group_id}]}])
+        self._call("authorize_endpoint_service_egress", self.ec2.authorize_security_group_egress, GroupId=self.endpoint_security_group_id, IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "IpRanges": [{"CidrIp": "0.0.0.0/0"}]}])
         self._call("authorize_instance_endpoint_egress", self.ec2.authorize_security_group_egress, GroupId=self.instance_security_group_id, IpPermissions=[{"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "UserIdGroupPairs": [{"GroupId": self.endpoint_security_group_id}]}])
+        self._verify_security_group_contract()
+
+    def _verify_security_group_contract(self) -> None:
+        if not self.endpoint_security_group_id or not self.instance_security_group_id:
+            raise CloudManifestError("surface security-group IDs are missing")
+        groups = self._call(
+            "verify_security_group_contract",
+            self.ec2.describe_security_groups,
+            GroupIds=[self.endpoint_security_group_id, self.instance_security_group_id],
+        ).get("SecurityGroups", [])
+        if not isinstance(groups, Sequence):
+            raise CloudManifestError("surface security-group readback is malformed")
+        _validate_surface_security_group_contract(
+            [group for group in groups if isinstance(group, Mapping)],
+            endpoint_group_id=self.endpoint_security_group_id,
+            instance_group_id=self.instance_security_group_id,
+        )
 
     def _endpoint_policy(self, service: str) -> dict[str, object]:
         account = self.config.image_refs["controller"].split(".", 1)[0]
@@ -784,6 +852,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
                         self.endpoint_ids[name] = cast(str, endpoint["VpcEndpointId"])
         if set(self.endpoint_ids) != set(INTERFACE_SERVICES):
             raise CloudManifestError("restart reconciliation found an incomplete interface endpoint set")
+        self._verify_security_group_contract()
         self._capture_endpoint_bindings()
         profile = self._call("get_instance_profile.restart", self.iam.get_instance_profile, InstanceProfileName=self.profile_name).get("InstanceProfile", {})
         profile_arn = profile.get("Arn")
@@ -1042,6 +1111,27 @@ class AwsSurfaceProvider(ProductionJobProvider):
             if not _absent(exc, "InvalidPermission.NotFound"):
                 raise
 
+    def _revoke_endpoint_service_egress(self) -> None:
+        if not self.endpoint_security_group_id:
+            return
+        try:
+            self._call(
+                "revoke_endpoint_service_egress",
+                self.ec2.revoke_security_group_egress,
+                GroupId=self.endpoint_security_group_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                    }
+                ],
+            )
+        except Exception as exc:
+            if not _absent(exc, "InvalidPermission.NotFound"):
+                raise
+
     def _delete_security_group(self, operation: str, group_id: str) -> None:
         deadline = time.time() + 60
         while True:
@@ -1090,6 +1180,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
             cleanup_error = cleanup_error or exc
         try:
             self._delete_action_endpoints()
+            self._revoke_endpoint_service_egress()
             self._revoke_security_group_pair()
             for operation, group_id in (
                 ("delete_instance_security_group", self.instance_security_group_id),

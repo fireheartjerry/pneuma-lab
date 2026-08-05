@@ -240,6 +240,52 @@ def test_security_group_pair_revocation_retains_both_directions() -> None:
     assert [operation for operation, _ in provider.ec2.operations] == ["ingress", "egress"]
 
 
+def test_surface_security_group_contract_requires_endpoint_service_egress() -> None:
+    endpoint = {
+        "GroupId": "sg-endpoint",
+        "IpPermissions": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 443,
+                "ToPort": 443,
+                "UserIdGroupPairs": [{"UserId": "123456789012", "GroupId": "sg-instance"}],
+            }
+        ],
+        "IpPermissionsEgress": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 443,
+                "ToPort": 443,
+                "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+            }
+        ],
+    }
+    instance = {
+        "GroupId": "sg-instance",
+        "IpPermissions": [],
+        "IpPermissionsEgress": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 443,
+                "ToPort": 443,
+                "UserIdGroupPairs": [{"GroupId": "sg-endpoint"}],
+            }
+        ],
+    }
+
+    aws_surface_provider._validate_surface_security_group_contract(
+        [endpoint, instance], endpoint_group_id="sg-endpoint", instance_group_id="sg-instance"
+    )
+
+    import pytest
+
+    endpoint["IpPermissionsEgress"] = []
+    with pytest.raises(Exception, match="endpoint security group egress"):
+        aws_surface_provider._validate_surface_security_group_contract(
+            [endpoint, instance], endpoint_group_id="sg-endpoint", instance_group_id="sg-instance"
+        )
+
+
 def test_vpc_attribute_parser_accepts_aws_nested_value_shape() -> None:
     assert aws_surface_provider.AwsSurfaceProvider._vpc_attribute_enabled(
         {"EnableDnsSupport": {"Value": True}}, "EnableDnsSupport"
