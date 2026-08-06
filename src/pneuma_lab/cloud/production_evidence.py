@@ -241,6 +241,49 @@ def launch_model_server(spec: ProductionRunSpec, *, run_root: Path) -> None:
     environment = dict(os.environ)
     environment["PNEUMA_RUN_SPEC_SHA256"] = spec.digest
     environment["PNEUMA_MODEL_REVISION"] = OFFICIAL_MODEL_REVISION
+    array_index = environment.get("AWS_BATCH_JOB_ARRAY_INDEX")
+    simulator_argv = model_server.get("simulator_launch_argv")
+    if array_index == "1" and isinstance(simulator_argv, list) and simulator_argv:
+        simulator_command = [cast(str, value) for value in simulator_argv]
+        if "vllm.entrypoints.openai.api_server" not in simulator_command:
+            raise CloudManifestError("simulator launch is not the registered vLLM server")
+        control = run_root / "control"
+        control.mkdir(parents=True, exist_ok=True)
+        requested = control / "simulator.requested"
+        ready = control / "simulator.ready"
+        ready.unlink(missing_ok=True)
+        process = subprocess.Popen(command, env=environment)
+        try:
+            while process.poll() is None and not requested.is_file():
+                time.sleep(2)
+            if process.poll() is not None:
+                raise CloudManifestError("subject model server exited before phase switch")
+            process.terminate()
+            try:
+                process.wait(timeout=120)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=30)
+            simulator_environment = dict(environment)
+            simulator_environment["PNEUMA_MODEL_REVISION"] = str(
+                cast(Mapping[str, object], spec.value["model_server"])[
+                    "simulator_revision"
+                ]
+            )
+            simulator = subprocess.Popen(simulator_command, env=simulator_environment)
+            ready.write_text("simulator\n", encoding="utf-8")
+            return_code = simulator.wait()
+            if return_code != 0:
+                raise CloudManifestError("simulator model server exited unsuccessfully")
+            return
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=30)
     os.execvpe(command[0], command, environment)
     raise AssertionError("os.execvpe returned unexpectedly")
 

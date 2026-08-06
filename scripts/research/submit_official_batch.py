@@ -7,6 +7,7 @@ does no scientific analysis or unblinding; it performs the final launch line.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -24,8 +25,11 @@ PAYLOAD_PREFIX = (
 )
 INSTANCE_PROFILE = "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker"
 BATCH_SERVICE_ROLE = "arn:aws:iam::892077329800:role/pneuma-c160-batch-service"
-SUBNETS = ["subnet-042e433905daddc0b", "subnet-0a0e7c9c04b87ba58"]
-SECURITY_GROUPS = ["sg-08428ae82a7e2fd35"]
+VPC_ID = "vpc-0577decd080525e86"
+PUBLIC_SUBNET_SPECS = (
+    ("us-east-1a", "10.42.100.0/24"),
+    ("us-east-1b", "10.42.101.0/24"),
+)
 IMAGE_RE = re.compile(
     r"^892077329800\.dkr\.ecr\.us-east-1\.amazonaws\.com/"
     r"pneuma-official-production-(controller|model-server|benchmark-worker)"
@@ -93,6 +97,188 @@ def _wait_queue(batch: Any, name: str, *, deadline: float) -> str:
     raise TimeoutError("job queue did not become valid")
 
 
+def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tuple[list[str], list[str]]:
+    tag_rows = [{"Key": key, "Value": value} for key, value in tags.items()]
+    gateways = ec2.describe_internet_gateways(
+        Filters=[{"Name": "attachment.vpc-id", "Values": [VPC_ID]}]
+    ).get("InternetGateways", [])
+    if gateways:
+        gateway_id = str(gateways[0]["InternetGatewayId"])
+    else:
+        gateway_id = str(ec2.create_internet_gateway()["InternetGateway"]["InternetGatewayId"])
+        ec2.create_tags(Resources=[gateway_id], Tags=tag_rows)
+        ec2.attach_internet_gateway(InternetGatewayId=gateway_id, VpcId=VPC_ID)
+
+    route_tables = ec2.describe_route_tables(
+        Filters=[
+            {"Name": "vpc-id", "Values": [VPC_ID]},
+            {"Name": "tag:ActionId", "Values": [action_id]},
+            {"Name": "tag:Purpose", "Values": ["official-public-egress"]},
+        ]
+    ).get("RouteTables", [])
+    if route_tables:
+        route_table_id = str(route_tables[0]["RouteTableId"])
+    else:
+        route_table_id = str(
+            ec2.create_route_table(VpcId=VPC_ID)["RouteTable"]["RouteTableId"]
+        )
+        ec2.create_tags(
+            Resources=[route_table_id],
+            Tags=[*tag_rows, {"Key": "Purpose", "Value": "official-public-egress"}],
+        )
+        ec2.create_route(
+            RouteTableId=route_table_id,
+            DestinationCidrBlock="0.0.0.0/0",
+            GatewayId=gateway_id,
+        )
+
+    subnet_ids: list[str] = []
+    for az, cidr in PUBLIC_SUBNET_SPECS:
+        matches = ec2.describe_subnets(
+            Filters=[
+                {"Name": "vpc-id", "Values": [VPC_ID]},
+                {"Name": "cidr-block", "Values": [cidr]},
+            ]
+        ).get("Subnets", [])
+        if matches:
+            subnet_id = str(matches[0]["SubnetId"])
+            if matches[0].get("AvailabilityZone") != az:
+                raise RuntimeError("official public subnet CIDR is in the wrong AZ")
+        else:
+            subnet_id = str(
+                ec2.create_subnet(
+                    VpcId=VPC_ID,
+                    AvailabilityZone=az,
+                    CidrBlock=cidr,
+                    TagSpecifications=[
+                        {
+                            "ResourceType": "subnet",
+                            "Tags": [
+                                *tag_rows,
+                                {"Key": "Purpose", "Value": "official-public-egress"},
+                            ],
+                        }
+                    ],
+                )["Subnet"]["SubnetId"]
+            )
+        ec2.modify_subnet_attribute(
+            SubnetId=subnet_id, MapPublicIpOnLaunch={"Value": True}
+        )
+        associations = ec2.describe_route_tables(
+            Filters=[{"Name": "association.subnet-id", "Values": [subnet_id]}]
+        ).get("RouteTables", [])
+        if not associations:
+            ec2.associate_route_table(
+                RouteTableId=route_table_id, SubnetId=subnet_id
+            )
+        elif associations[0]["RouteTableId"] != route_table_id:
+            association = next(
+                (
+                    row
+                    for row in associations[0].get("Associations", [])
+                    if row.get("SubnetId") == subnet_id
+                ),
+                None,
+            )
+            if not isinstance(association, dict) or not association.get(
+                "RouteTableAssociationId"
+            ):
+                raise RuntimeError("official public subnet route is ambiguous")
+            ec2.replace_route_table_association(
+                AssociationId=association["RouteTableAssociationId"],
+                RouteTableId=route_table_id,
+            )
+        subnet_ids.append(subnet_id)
+
+    group_name = f"{action_id}-egress"[:255]
+    groups = ec2.describe_security_groups(
+        Filters=[
+            {"Name": "vpc-id", "Values": [VPC_ID]},
+            {"Name": "group-name", "Values": [group_name]},
+        ]
+    ).get("SecurityGroups", [])
+    if groups:
+        group_id = str(groups[0]["GroupId"])
+    else:
+        group_id = str(
+            ec2.create_security_group(
+                GroupName=group_name,
+                Description="Official study egress-only worker group",
+                VpcId=VPC_ID,
+                TagSpecifications=[
+                    {"ResourceType": "security-group", "Tags": tag_rows}
+                ],
+            )["GroupId"]
+        )
+    if ec2.describe_security_groups(GroupIds=[group_id])["SecurityGroups"][0].get(
+        "IpPermissions"
+    ):
+        raise RuntimeError("official worker security group unexpectedly has ingress")
+    return subnet_ids, [group_id]
+
+
+def _ensure_launch_template(ec2: Any, action_id: str, tags: dict[str, str]) -> tuple[str, str]:
+    name = f"{action_id}-worker"[:128]
+    templates = ec2.describe_launch_templates(
+        Filters=[{"Name": "launch-template-name", "Values": [name]}]
+    ).get("LaunchTemplates", [])
+    if templates:
+        template_id = str(templates[0]["LaunchTemplateId"])
+        version = str(templates[0]["LatestVersionNumber"])
+        return template_id, version
+    tag_rows = [{"Key": key, "Value": value} for key, value in tags.items()]
+    user_data = """#!/bin/bash
+set -euo pipefail
+if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
+  fallocate -l 64G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+fi
+"""
+    response = ec2.create_launch_template(
+        LaunchTemplateName=name,
+        VersionDescription="official-c120-v1",
+        TagSpecifications=[
+            {"ResourceType": "launch-template", "Tags": tag_rows}
+        ],
+        LaunchTemplateData={
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/xvda",
+                    "Ebs": {
+                        "DeleteOnTermination": True,
+                        "Encrypted": True,
+                        "VolumeSize": 1000,
+                        "VolumeType": "gp3",
+                        "Iops": 3000,
+                        "Throughput": 250,
+                    },
+                }
+            ],
+            "MetadataOptions": {
+                "HttpEndpoint": "enabled",
+                "HttpTokens": "required",
+                "HttpPutResponseHopLimit": 2,
+            },
+            "Monitoring": {"Enabled": True},
+            "UserData": base64.b64encode(user_data.encode()).decode("ascii"),
+            "TagSpecifications": [
+                {
+                    "ResourceType": "instance",
+                    "Tags": tag_rows,
+                },
+                {
+                    "ResourceType": "volume",
+                    "Tags": tag_rows,
+                },
+            ],
+        },
+    )
+    template = response["LaunchTemplate"]
+    return str(template["LaunchTemplateId"]), str(template["LatestVersionNumber"])
+
+
 def _container(
     *,
     name: str,
@@ -125,7 +311,7 @@ def _container(
             {
                 "sourceVolume": "run-root",
                 "containerPath": "/run/pneuma",
-                "readOnly": name == "model-server",
+                "readOnly": False,
             },
             *(
                 [
@@ -163,6 +349,7 @@ def submit(
     images = _load_images(image_set)
     s3 = boto3.client("s3", region_name=REGION)
     batch = boto3.client("batch", region_name=REGION)
+    ec2 = boto3.client("ec2", region_name=REGION)
     iam = boto3.client("iam", region_name=REGION)
     package_key = f"runs/official/{action_id}/inputs/package.tar.gz"
     output_prefix = f"runs/official/{action_id}/outputs"
@@ -182,10 +369,19 @@ def submit(
                 ],
             },
             {
-                "Sid": "OfficialOutputWrites",
+                "Sid": "OfficialOutputReadWrite",
                 "Effect": "Allow",
-                "Action": ["s3:PutObject"],
+                "Action": ["s3:GetObject", "s3:PutObject"],
                 "Resource": f"arn:aws:s3:::{BUCKET}/{output_prefix}/*",
+            },
+            {
+                "Sid": "OfficialOutputList",
+                "Effect": "Allow",
+                "Action": ["s3:ListBucket"],
+                "Resource": f"arn:aws:s3:::{BUCKET}",
+                "Condition": {
+                    "StringLike": {"s3:prefix": [f"{output_prefix}/*"]}
+                },
             },
         ],
     }
@@ -210,6 +406,10 @@ def submit(
         "ActionId": action_id,
         "RunSpecSHA256": run_spec_sha256,
     }
+    subnets, security_groups = _ensure_public_network(ec2, action_id, tags)
+    launch_template_id, launch_template_version = _ensure_launch_template(
+        ec2, action_id, tags
+    )
     compute_name = f"{action_id}-ce"
     queue_name = f"{action_id}-queue"
     definition_name = f"{action_id}-job"
@@ -225,9 +425,13 @@ def submit(
             "maxvCpus": 16,
             "desiredvCpus": 0,
             "instanceTypes": ["g6e.2xlarge"],
-            "subnets": SUBNETS,
-            "securityGroupIds": SECURITY_GROUPS,
+            "subnets": subnets,
+            "securityGroupIds": security_groups,
             "instanceRole": INSTANCE_PROFILE,
+            "launchTemplate": {
+                "launchTemplateId": launch_template_id,
+                "version": launch_template_version,
+            },
             "tags": tags,
             "ec2Configuration": [{"imageType": "ECS_AL2023_NVIDIA"}],
         },
@@ -246,11 +450,17 @@ def submit(
     common_environment = [
         {"name": "PNEUMA_RUN_SPEC_SHA256", "value": run_spec_sha256},
         {"name": "PNEUMA_OUTPUT_S3_URI", "value": output_uri},
+        {"name": "PNEUMA_HOST_RUN_ROOT", "value": f"/var/lib/{action_id}"},
+        {"name": "VLLM_BATCH_INVARIANT", "value": "1"},
     ]
     controller_environment = [
         *common_environment,
         {"name": "PNEUMA_PAYLOAD_BUCKET", "value": BUCKET},
         {"name": "PNEUMA_PAYLOAD_PREFIX", "value": PAYLOAD_PREFIX},
+    ]
+    benchmark_environment = [
+        *common_environment,
+        {"name": "PNEUMA_BENCHMARK_WORKER_IMAGE_REF", "value": images["benchmark-worker"]},
     ]
     containers = [
         _container(
@@ -286,7 +496,7 @@ def submit(
                 "/run/pneuma",
             ],
             vcpus=1,
-            memory=46000,
+            memory=20000,
             essential=False,
             environment=common_environment,
             depends_on=[{"containerName": "controller", "condition": "SUCCESS"}],
@@ -306,9 +516,9 @@ def submit(
                 "/run/pneuma",
             ],
             vcpus=6,
-            memory=12000,
+            memory=4000,
             essential=True,
-            environment=common_environment,
+            environment=benchmark_environment,
             depends_on=[
                 {"containerName": "controller", "condition": "SUCCESS"},
                 {"containerName": "model-server", "condition": "START"},
@@ -338,7 +548,7 @@ def submit(
             ]
         },
         retryStrategy={"attempts": 1},
-        timeout={"attemptDurationSeconds": 1_200_000},
+        timeout={"attemptDurationSeconds": 604_800},
         propagateTags=True,
         tags=tags,
     )
@@ -365,6 +575,11 @@ def submit(
         "array_job_id": submitted["jobId"],
         "array_size": 2,
         "max_spot_vcpus": 16,
+        "public_subnets": subnets,
+        "security_group_ids": security_groups,
+        "launch_template_id": launch_template_id,
+        "launch_template_version": launch_template_version,
+        "root_volume_gib": 1000,
         "attempts": 1,
         "status": "SUBMITTED",
     }

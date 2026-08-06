@@ -249,6 +249,28 @@ def test_official_semantics_reject_fixture_adapter(tmp_path: Path) -> None:
         "media_type": "application/json",
     }
     value["power_tier"] = 120
+    for field, role, relative, digest in (
+        ("prelaunch_root_ref", "prelaunch_root", "inputs/prelaunch.json", "8"),
+        (
+            "execution_seed_openings_ref",
+            "execution_seed_openings",
+            "inputs/execution-seeds.json",
+            "9",
+        ),
+        (
+            "execution_assets_ref",
+            "swe_execution_assets",
+            "inputs/swe-assets.json",
+            "a",
+        ),
+    ):
+        value[field] = {
+            "role": role,
+            "relative_path": relative,
+            "sha256": digest * 64,
+            "byte_count": 1,
+            "media_type": "application/json",
+        }
     value["model_server"] = {
         **value["model_server"],
         "launch_argv": [
@@ -259,6 +281,13 @@ def test_official_semantics_reject_fixture_adapter(tmp_path: Path) -> None:
             "--revision",
             "95a723d08a9490559dae23d0cff1d9466213d989",
         ],
+        "simulator_launch_argv": [
+            "vllm",
+            "vllm.entrypoints.openai.api_server",
+            "--model",
+            "Qwen/Qwen3.5-9B",
+        ],
+        "simulator_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
     }
     with pytest.raises(CloudManifestError, match="mock or fixture"):
         ProductionRunSpec.from_mapping(value)

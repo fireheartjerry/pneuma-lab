@@ -6,6 +6,7 @@ ARG SOURCE_DATE_EPOCH=0
 ENV PYTHONHASHSEED=0 TZ=UTC PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/pneuma
 WORKDIR /opt/pneuma
 COPY infra/docker/benchmark-worker/benchmark-worker.lock /opt/pneuma/benchmark-worker.lock
+COPY infra/docker/benchmark-worker/official-runtime-requirements.txt /opt/pneuma/official-runtime-requirements.txt
 COPY src/pneuma_lab/__init__.py /opt/pneuma/pneuma_lab/__init__.py
 COPY src/pneuma_lab/cloud /opt/pneuma/pneuma_lab/cloud
 COPY src/pneuma_lab/foundation/__init__.py /opt/pneuma/pneuma_lab/foundation/__init__.py
@@ -16,7 +17,8 @@ COPY src/pneuma_lab/schemas/__init__.py /opt/pneuma/pneuma_lab/schemas/__init__.
 COPY schemas /opt/schemas
 # Fail the image build rather than discovering a missing verifier dependency
 # only after the separately authorized production launch.
-RUN python3 -c "import cryptography, jsonschema"
+RUN python3 -m pip install --no-cache-dir -r /opt/pneuma/official-runtime-requirements.txt \
+    && python3 -c "import cryptography, docker, jsonschema, litellm, rank_bm25"
 # Normalize build-owned mtimes for reproducibility on the pinned BuildKit.
 RUN find /opt/pneuma -xdev -exec touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference {} + \
     && touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference /opt

@@ -236,7 +236,14 @@ def seal_prelaunch(
     schedule: list[str] = []
     for benchmark in ("SWE", "TAU"):
         for index, task_id in enumerate(ordered_by_benchmark[benchmark]):
-            worker_by_task[task_id] = f"worker-{index % 2}"
+            # The official AWS surface has two one-GPU workers.  SWE uses a
+            # subject replica on each worker.  During tau2, worker-1 is the
+            # separately pinned user-simulator server, so every tau2 subject
+            # episode is executed by worker-0.  This is the only two-L40S
+            # schedule that does not silently omit the registered simulator.
+            worker_by_task[task_id] = (
+                f"worker-{index % 2}" if benchmark == "SWE" else "worker-0"
+            )
             schedule.append(task_id)
 
     clear_rows: list[dict[str, object]] = []
@@ -341,6 +348,58 @@ def seal_prelaunch(
     }
     assignment_path = output / "assignment.controller-only.json"
     _write(assignment_path, assignment, private=True)
+    execution_rows: list[dict[str, object]] = []
+    for row in clear_rows:
+        task_id = str(row["task_id"])
+        execution_rows.append(
+            {
+                "task_id": task_id,
+                "worker_id": row["worker_id"],
+                "common_prefix_root_u64": int.from_bytes(
+                    _derive(secrets["schedule"], "common-prefix", task_id)[:8],
+                    "big",
+                ),
+                "packet_rank_sha256": hashlib.sha256(
+                    _derive(secrets["packet"], "packet-donor-rank", task_id)
+                ).hexdigest(),
+                "slots": [
+                    {
+                        "ordinal": slot["ordinal"],
+                        "slot_id": slot["slot_id"],
+                        "model_root_u64": int.from_bytes(
+                            _derive(
+                                secrets["model"],
+                                "model-slot",
+                                task_id,
+                                str(slot["slot_id"]),
+                            )[:8],
+                            "big",
+                        ),
+                        "benchmark_root_u64": int.from_bytes(
+                            _derive(
+                                secrets["benchmark"],
+                                "benchmark-slot",
+                                task_id,
+                                str(slot["slot_id"]),
+                            )[:8],
+                            "big",
+                        ),
+                    }
+                    for slot in row["slots"]
+                ],
+            }
+        )
+    execution_seeds = {
+        "record_kind": "cloud_official_execution_seed_openings",
+        "schema_version": "0.1.0",
+        "study_id": STUDY_ID,
+        "status": "sealed_controller_only",
+        "call_seed_contract_id": "call-seed-v1",
+        "rows": execution_rows,
+        "binding": binding,
+    }
+    execution_seeds_path = output / "execution-seeds.controller-only.json"
+    _write(execution_seeds_path, execution_seeds, private=True)
     packet_authority = {
         "record_kind": "cloud_official_packet_authority",
         "schema_version": "0.1.0",
@@ -408,6 +467,11 @@ def seal_prelaunch(
         "artifacts": [
             _ref(package_root, roster_seal_path, "roster_seal"),
             _ref(package_root, assignment_path, "assignment_seal"),
+            _ref(
+                package_root,
+                execution_seeds_path,
+                "execution_seed_openings",
+            ),
             _ref(package_root, packet_path, "packet_authority"),
             _ref(package_root, task_blocks_path, "task_block_plan"),
             _ref(package_root, blinding_path, "blinding_seal"),
@@ -443,8 +507,8 @@ def verify_prelaunch(root_path: Path, *, package_root: Path) -> Mapping[str, obj
     ):
         raise CloudManifestError("prelaunch root identity or state differs")
     artifacts = root.get("artifacts")
-    if not isinstance(artifacts, list) or len(artifacts) != 6:
-        raise CloudManifestError("prelaunch root must bind six sealed artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 7:
+        raise CloudManifestError("prelaunch root must bind seven sealed artifacts")
     roles: set[str] = set()
     for item in artifacts:
         if not isinstance(item, Mapping):
@@ -466,6 +530,7 @@ def verify_prelaunch(root_path: Path, *, package_root: Path) -> Mapping[str, obj
     expected = {
         "roster_seal",
         "assignment_seal",
+        "execution_seed_openings",
         "packet_authority",
         "task_block_plan",
         "blinding_seal",

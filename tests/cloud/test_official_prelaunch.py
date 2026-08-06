@@ -89,7 +89,7 @@ def test_seals_exact_prelaunch_authorities(tmp_path: Path) -> None:
     assert root["selected_tier"] == 120
     plan = json.loads((package / "sealed/task-block-plan.json").read_text())
     assert plan["task_count"] == 240
-    assert plan["worker_counts"] == {"worker-0": 120, "worker-1": 120}
+    assert plan["worker_counts"] == {"worker-0": 180, "worker-1": 60}
     assignment = json.loads(
         (package / "sealed/assignment.controller-only.json").read_text()
     )
@@ -100,6 +100,16 @@ def test_seals_exact_prelaunch_authorities(tmp_path: Path) -> None:
         "NONE",
         "RESAMPLE",
     }
+    openings = json.loads(
+        (package / "sealed/execution-seeds.controller-only.json").read_text()
+    )
+    assert len(openings["rows"]) == 240
+    assert all(len(row["slots"]) == 4 for row in openings["rows"])
+    assert {
+        row["worker_id"]
+        for row in openings["rows"]
+        if row["task_id"].startswith("tau:")
+    } == {"worker-0"}
 
 
 def test_rejects_nonopening_seed(tmp_path: Path) -> None:

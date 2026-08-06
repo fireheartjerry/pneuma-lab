@@ -19,12 +19,20 @@ import tarfile
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from .production_evidence import ProductionWorkerExecutor, launch_model_server, write_worker_result
+from .official_experiment import (
+    CoordinationStore,
+    OfficialSweExecutor,
+    OfficialTauExecutor,
+    SimulatorRpcProxy,
+    load_official_execution_inputs,
+    serve_simulator_rpc,
+)
 from .production_controller import ProductionOrchestrator, ProductionStateStore
 from .production_run import ProductionRunSpec, canonical_digest, task_rows, work_ids_for_worker
 
@@ -238,6 +246,160 @@ def _wait_for_model(spec: ProductionRunSpec) -> None:
             pass
         time.sleep(5)
     raise TimeoutError("model server did not become ready before the frozen deadline")
+
+
+def _wait_for_endpoint(endpoint: str, *, seconds: int) -> None:
+    deadline = time.monotonic() + seconds
+    health = endpoint.rstrip("/") + "/health"
+    while time.monotonic() < deadline:
+        try:
+            with urllib_request.urlopen(health, timeout=5) as response:
+                if 200 <= response.status < 300:
+                    return
+        except (urllib_error.URLError, TimeoutError, OSError):
+            pass
+        time.sleep(5)
+    raise TimeoutError("registered model endpoint did not become ready")
+
+
+def _worker_private_ipv4() -> str:
+    metadata = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
+    if metadata:
+        try:
+            with urllib_request.urlopen(metadata.rstrip("/") + "/task", timeout=5) as response:
+                value = json.loads(response.read().decode("utf-8"))
+            networks = value.get("Networks") if isinstance(value, dict) else None
+            if isinstance(networks, list):
+                for network in networks:
+                    addresses = network.get("IPv4Addresses") if isinstance(network, dict) else None
+                    if isinstance(addresses, list):
+                        for address in addresses:
+                            if isinstance(address, str) and address.count(".") == 3:
+                                return address
+        except Exception:
+            pass
+    token_request = urllib_request.Request(
+        "http://169.254.169.254/latest/api/token",
+        data=b"",
+        headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
+        method="PUT",
+    )
+    with urllib_request.urlopen(token_request, timeout=5) as response:
+        token = response.read().decode("ascii")
+    address_request = urllib_request.Request(
+        "http://169.254.169.254/latest/meta-data/local-ipv4",
+        headers={"X-aws-ec2-metadata-token": token},
+    )
+    with urllib_request.urlopen(address_request, timeout=5) as response:
+        address = response.read().decode("ascii").strip()
+    if address.count(".") != 3:
+        raise ValueError("worker private IPv4 address is malformed")
+    return address
+
+
+def _official_worker_execution(
+    *,
+    spec: ProductionRunSpec,
+    run_root: Path,
+    worker_id: str,
+) -> dict[str, object]:
+    output_uri = os.environ.get("PNEUMA_OUTPUT_S3_URI")
+    if not output_uri:
+        raise ValueError("official output S3 URI is required")
+    assignments, openings, swe_assets = load_official_execution_inputs(run_root)
+    task_registry = _load_input(run_root / "inputs/task-registry.json")
+    rows = task_registry.get("tasks") if isinstance(task_registry, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("official task registry is malformed")
+    registry_rows = {
+        str(row["task_id"]): row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("task_id"), str)
+    }
+    if set(registry_rows) != set(assignments):
+        raise ValueError("official registry and sealed assignment differ")
+    store = CoordinationStore(output_uri)
+    model = spec.value["model"]
+    sampling_by_benchmark = (
+        model.get("sampling_by_benchmark") if isinstance(model, dict) else None
+    )
+    if not isinstance(sampling_by_benchmark, dict):
+        raise ValueError("official benchmark sampling is missing")
+    swe_task_ids = [
+        task_id
+        for task_id, row in assignments.items()
+        if task_id.startswith("swe:") and row.get("worker_id") == worker_id
+    ]
+    swe = OfficialSweExecutor(
+        spec=spec,
+        run_root=run_root,
+        worker_id=worker_id,
+        store=store,
+        assignments=assignments,
+        openings=openings,
+        assets=swe_assets,
+        sampling=cast(dict[str, object], sampling_by_benchmark["swe_multilang"]),
+    ).run(swe_task_ids)
+    store.wait_for(
+        [
+            "coordination/swe-branches/worker-0.complete.json",
+            "coordination/swe-branches/worker-1.complete.json",
+        ],
+        deadline=time.monotonic() + 259_200,
+    )
+    tau: dict[str, object] | None = None
+    control = run_root / "control"
+    control.mkdir(parents=True, exist_ok=True)
+    if worker_id == "worker-1":
+        (control / "simulator.requested").write_text("simulator\n", encoding="utf-8")
+        deadline = time.monotonic() + 1800
+        while time.monotonic() < deadline and not (control / "simulator.ready").is_file():
+            time.sleep(5)
+        if not (control / "simulator.ready").is_file():
+            raise TimeoutError("simulator model server did not switch")
+        _wait_for_endpoint("http://127.0.0.1:8000", seconds=1800)
+        store.put_once(
+            "coordination/simulator-ready.json",
+            {
+                "worker_id": worker_id,
+                "transport": "s3-rpc-v1",
+                "model": "Qwen/Qwen3.5-9B",
+                "state": "READY",
+            },
+        )
+        serve_simulator_rpc(store)
+    else:
+        store.wait_for(
+            ["coordination/simulator-ready.json"],
+            deadline=time.monotonic() + 3600,
+        )
+        simulator = store.get("coordination/simulator-ready.json")
+        if simulator.get("transport") != "s3-rpc-v1":
+            raise ValueError("simulator readiness transport is malformed")
+        proxy = SimulatorRpcProxy(store)
+        proxy.start()
+        try:
+            tau_ids = [task_id for task_id in assignments if task_id.startswith("tau:")]
+            tau = OfficialTauExecutor(
+                spec=spec,
+                run_root=run_root,
+                store=store,
+                assignments=assignments,
+                openings=openings,
+                registry_rows=registry_rows,
+                simulator_endpoint=proxy.endpoint,
+            ).run(tau_ids)
+        finally:
+            proxy.close()
+    return {
+        "record_kind": "cloud_official_worker_execution_summary",
+        "schema_version": "0.1.0",
+        "run_spec_sha256": spec.digest,
+        "worker_id": worker_id,
+        "swe": swe,
+        "tau": tau,
+        "state": "COMPLETE",
+    }
 
 
 def _read_harness(path: Path, expected: str) -> tuple[bytes, str] | None:
@@ -458,6 +620,28 @@ def _production(
         if spec.run_mode == "official":
             _ensure_worker_identity(worker_id)
             _wait_for_model(spec)
+        if spec.run_mode == "official":
+            summary = _official_worker_execution(
+                spec=spec,
+                run_root=run_root,
+                worker_id=worker_id,
+            )
+            payload = _canonical_bytes(summary)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(payload)
+            raw_output_path.write_bytes(payload)
+            output_uri = os.environ.get("PNEUMA_OUTPUT_S3_URI")
+            if not output_uri:
+                return _failure(role, "official_output_s3_uri_required")
+            _publish_worker_outputs(
+                output_uri=output_uri,
+                worker_id=worker_id,
+                evidence_path=output_path,
+                raw_path=raw_output_path,
+            )
+            print(_canonical(summary))
+            return 0
         result = ProductionWorkerExecutor(spec, run_root=run_root).execute(worker_id)
         evidence = write_worker_result(
             result,

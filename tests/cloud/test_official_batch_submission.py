@@ -86,6 +86,7 @@ def test_official_multicontainer_resources_fill_one_whole_worker() -> None:
         if item["type"] == "GPU"
     ) == 1
     assert rows[2]["privileged"] is True
+    assert rows[1]["mountPoints"][0]["readOnly"] is False
 
 
 def test_image_set_loader_rejects_mutable_tags(tmp_path: Path) -> None:

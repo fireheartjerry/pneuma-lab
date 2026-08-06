@@ -59,6 +59,9 @@
         "official_key_registry_ref": {
             "oneOf": [{"$ref": "#/$defs/file_ref"}, {"type": "null"}]
         },
+        "prelaunch_root_ref": {"$ref": "#/$defs/file_ref"},
+        "execution_seed_openings_ref": {"$ref": "#/$defs/file_ref"},
+        "execution_assets_ref": {"$ref": "#/$defs/file_ref"},
         "model_server": {"$ref": "#/$defs/model_server"},
         "benchmark_adapter": {"$ref": "#/$defs/benchmark_adapter"}
     },
@@ -81,7 +84,10 @@
                 "properties": {
                     "official_authorization_ref": {"$ref": "#/$defs/file_ref"},
                     "power_report_ref": {"$ref": "#/$defs/file_ref"},
-                    "power_tier": {"enum": [120, 160]}
+                    "power_tier": {"enum": [120, 160]},
+                    "model_server": {
+                        "required": ["simulator_launch_argv", "simulator_revision"]
+                    }
                 }
             }
         },
@@ -98,7 +104,15 @@
         },
         {
             "if": {"properties": {"run_mode": {"const": "official"}}},
-            "then": {"required": ["official_key_registry_ref"], "properties": {"official_key_registry_ref": {"$ref": "#/$defs/file_ref"}}}
+            "then": {
+                "required": [
+                    "official_key_registry_ref",
+                    "prelaunch_root_ref",
+                    "execution_seed_openings_ref",
+                    "execution_assets_ref"
+                ],
+                "properties": {"official_key_registry_ref": {"$ref": "#/$defs/file_ref"}}
+            }
         }
     ],
     "additionalProperties": false,
@@ -217,7 +231,12 @@
                 "instance_type": {"const": "g6e.2xlarge"},
                 "vcpus_per_worker": {"const": 8},
                 "gpus_per_worker": {"const": 1},
-                "allocation_contract_id": {"const": "canonical-round-robin-two-worker-v1"}
+                "allocation_contract_id": {
+                    "enum": [
+                        "canonical-round-robin-two-worker-v1",
+                        "two-l40s-swe-dual-tau-subject-simulator-v1"
+                    ]
+                }
             },
             "additionalProperties": false
         },
@@ -248,6 +267,8 @@
             "properties": {
                 "endpoint": {"type": "string", "pattern": "^https?://[^\\s]+$"},
                 "launch_argv": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}},
+                "simulator_launch_argv": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}},
+                "simulator_revision": {"$ref": "#/$defs/commit"},
                 "readiness_timeout_seconds": {"type": "integer", "exclusiveMinimum": 0},
                 "request_timeout_seconds": {"type": "integer", "exclusiveMinimum": 0}
             },
