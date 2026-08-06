@@ -276,7 +276,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "instance_type": "g6e.2xlarge",
         "max_spot_vcpus": 16,
         "attempts": 1,
-        "max_duration_seconds": 1_200_000,
+        "max_duration_seconds": 604_800,
         "max_usd": 5100.0,
         "images": [
             {"role": role, "image_digest": image_digests[role]} for role in ROLE_ORDER
