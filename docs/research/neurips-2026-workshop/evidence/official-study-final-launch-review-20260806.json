@@ -1,0 +1,79 @@
+{
+  "record_kind": "cloud_official_study_final_launch_review",
+  "schema_version": "0.1.0",
+  "reviewed_at": "2026-08-06T22:00:07Z",
+  "verdict": "READY_TO_SUBMIT",
+  "action_id": "official-p0-step4b-c120-20260806-r2",
+  "supersedes_unlaunched_action_id": "official-p0-step4b-c120-20260806",
+  "experiment_submitted": false,
+  "scientific_workload_started": false,
+  "bindings": {
+    "runtime_source_commit": "253d8f644ef6757e317fda4c81ffea3906fed584",
+    "launch_surface_commit": "76094e0f1c0e6d6a740daf088f4bec8959adad03",
+    "c120_power_final_sha256": "0e1828fcf53a80e0754a667cec1789d8d794872bae6bf208af600263dc1b4b32",
+    "prelaunch_root_sha256": "7cd87067798371930b71bd2fc648a3f337f03c4bef692651ccb6e443d96c809e",
+    "run_spec_sha256": "ae09ce2c01489894f80e530d27eabf8901f0b87bd9620058e1a6a29a89339493",
+    "run_spec_subject_sha256": "ff7257663b98a932549d660e0318011a1c46052d4a784069119696d95f77ab85",
+    "authorization_sha256": "faa6d1e304d203662aa09a35a8df54f4b14a0898060c6ba020dc028c05f31335",
+    "launch_plan_sha256": "908d21c1c3942a954182867b3fbc27d5ab941ee73716dddfcd90ffc0a73e2372",
+    "package_sha256": "1ced6e56db66da1949ac1f9ec4f355c890f5c87dbcace6de49876ee54c05adf1",
+    "ledger_row_id": "CL-362"
+  },
+  "registered_surface": {
+    "array_size": 2,
+    "instance_type": "g6e.2xlarge",
+    "spot_vcpu_ceiling": 16,
+    "attempts": 1,
+    "tasks_per_benchmark": 120,
+    "controller": {"vcpus": 1, "memory_mib": 2000, "gpus": 0},
+    "model_server": {"vcpus": 1, "memory_mib": 46000, "gpus": 1},
+    "benchmark_worker": {"vcpus": 6, "memory_mib": 12000, "gpus": 0},
+    "max_duration_seconds": 604800,
+    "max_usd": 5100.0,
+    "teardown_required": true
+  },
+  "images": {
+    "controller": "sha256:c7070db148118b941f23d9f331adc63635dd3d2606927394c011f0e1b9186db6",
+    "model_server": "sha256:51e6e161e201c904c702e29c5fc41ab7de58270989f9012b59753275d7d42284",
+    "benchmark_worker": "sha256:53fc7690690e0c12b379664d00ae4ae66571796a6bf554a2fbbe0acd3a9f7f48"
+  },
+  "read_only_account_review": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "spot_g_vcpu_quota": 16.0,
+    "instance_offering_azs": ["us-east-1a", "us-east-1b"],
+    "recent_spot_observations": 20,
+    "maximum_observed_usd_per_instance_hour": 2.2421,
+    "target_subnet_cidrs_free": true,
+    "instance_profile_exact": true,
+    "batch_service_role_exact": true,
+    "kms_key_enabled_for_sign_verify": true,
+    "immutable_ecr_images_present": true,
+    "unique_payload_objects_expected": 1667,
+    "unique_payload_objects_present_with_matching_sizes": 1667,
+    "payload_bytes": 57639405786,
+    "preexisting_action_resources": 0,
+    "preexisting_action_package": false
+  },
+  "launch_review": {
+    "kms_signature_verified": true,
+    "package_archive_digest_verified": true,
+    "authorization_verified_by_runtime_contract": true,
+    "submission_source_bound_before_mutation": true,
+    "teardown_source_bound_before_mutation": true,
+    "registered_memory_topology_matches_submission": true,
+    "action_owned_teardown_available": true,
+    "active_jobs_protected_from_teardown": true,
+    "scientific_input_and_output_evidence_retained_by_teardown": true,
+    "focused_tests_passed": 17,
+    "status_schema_passed": true,
+    "diff_check_passed": true
+  },
+  "power_reuse": {
+    "c120_selected": true,
+    "c120_rerun_required_for_this_frozen_study": false,
+    "c160_status": "FEASIBILITY_NO_GO_NO_ELIGIBLE_ROSTER_EXTENSION",
+    "rerun_only_if_power_critical_design_roster_effect_or_rng_contract_changes": true
+  },
+  "operator_boundary": "The exact submission command is prepared but was intentionally not executed. No AWS Batch SubmitJob call or scientific workload occurred."
+}

@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-08-04",
+    "as_of": "2026-08-06",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -457,7 +457,6 @@
                 "docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -487,7 +486,6 @@
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/input-package.json"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -569,10 +567,14 @@
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images/model-server.receipt.json",
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/images/benchmark-worker.receipt.json",
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/receipt.json",
-                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json"
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-images-253d8f6-20260806/images.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-c120-v5-20260806/power/c120-final.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-launch-review-20260806.json",
+                "scripts/research/submit_official_batch.py",
+                "scripts/research/cleanup_official_batch.py"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -621,10 +623,15 @@
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface.json",
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/receipt.json",
                 "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/controller-state.json",
-                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json"
+                "docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804-repair/evidence/production-surface-e2e/official-surface-e2e-20260804/teardown.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-images-253d8f6-20260806/images.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-c120-v5-20260806/power/c120-final.json",
+                "docs/research/neurips-2026-workshop/evidence/official-study-final-launch-review-20260806.json",
+                "scripts/research/finalize_official_study.py",
+                "scripts/research/submit_official_batch.py",
+                "scripts/research/cleanup_official_batch.py"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -645,7 +652,6 @@
                 "docs/research/neurips-2026-workshop/33-execution-journal.md"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -673,7 +679,6 @@
                 "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -700,7 +705,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -725,7 +729,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -743,7 +746,6 @@
                 "tests/cloud/test_emulation.py"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -762,7 +764,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -783,7 +784,6 @@
                 "tests/cloud/test_worker_admission.py"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -836,7 +836,6 @@
                 "tests/cloud/test_qualification_image_bootstrap.py"
             ],
             "blockers": [
-                "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         }
@@ -1131,7 +1130,7 @@
         },
         {
             "id": "B-NEURIPS-TASK8-E2E",
-            "summary": "Task 8 has no P0 result of record: the terminated 2026-07-30 all-cell timing probe emitted no machine-verifiable monotonic-clock termination evidence, so no real resampling_timing_no_go record exists, and no admitted screen, shard, validation, or power final has been produced; its state is implementation_complete and E2E_pending."
+            "summary": "Task 8 now has the frozen C120 GO power final selected by the registered largest-feasible rule; it remains E2E_pending only because the authorized official experiment has not yet executed and therefore has no empirical timing or result of record."
         },
         {
             "id": "B-NEURIPS-TASK9-E2E",
@@ -1142,12 +1141,8 @@
             "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
         },
         {
-            "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The campaign-spec builder now requires the canonical p0-power-report.json and p0-core-receipt.json paths rather than treating the prose design brief as power evidence, and currently fails closed because both are absent. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
-        },
-        {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",
-            "summary": "No authorized real experiment, pilot, benchmark/model run, Step 4B lineage, scientific unblind, or scientific result has been executed. Bounded pre-experiment AWS qualifications and their exact teardown receipts are recorded separately and do not promote any scientific claim."
+            "summary": "The exact C120 official P0/Step-4B action is KMS-authorized and READY_TO_SUBMIT, but no real experiment, benchmark/model workload, scientific unblind, analysis, or result has executed. This is the intentional operator pause boundary, not a remaining launch-readiness blocker."
         }
     ]
 }

@@ -1,0 +1,1496 @@
+{
+    "frozen_created_at": "2026-08-06T05:30:00Z",
+    "payload": {
+        "all_attempt_refs": [
+            {
+                "byte_count": 3999,
+                "media_type": "application/json",
+                "relative_path": "c120-screen-gen0.json",
+                "role": "power_report",
+                "sha256": "787af9000bb90fb01699033352ef762a11d47f67d04607b4604a26ca1028556d"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-00.json",
+                "role": "power_report",
+                "sha256": "e61fd8927722239b99ac8f877f7d9127da5d785d35c780ff0a8115b6fc489b04"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-01.json",
+                "role": "power_report",
+                "sha256": "12f3a6375fe977fb142bc68eae9c9ed537475a07e005790987d3e8b313881d4e"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-02.json",
+                "role": "power_report",
+                "sha256": "ad856e426c8fed5d167008cb0b8f1a3263a1b685cd0d754dce296756d316cb5d"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-03.json",
+                "role": "power_report",
+                "sha256": "f5b68ba71e1ff56c8607bc81913a50ea6c4913b32926dc42645ffff1dbedd115"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-04.json",
+                "role": "power_report",
+                "sha256": "8a7cac646336369c50927541ce7979642200cd5a4118a7291e4461ea600d4abd"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-05.json",
+                "role": "power_report",
+                "sha256": "d0c000072ce4ec9aa3859462b84c83f8457df220b15622aa7a7fcd57d0f779e3"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-06.json",
+                "role": "power_report",
+                "sha256": "3c5995acada249d52bf2dbd321856a0c3016aec771555b1b6aeb5df2b86f2bf7"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-07.json",
+                "role": "power_report",
+                "sha256": "94a7dab5ec2f8d2ff2625b6ee836c63ab5609aad70ea62c1f634d756a453521a"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-08.json",
+                "role": "power_report",
+                "sha256": "b1b862b733418aba9c05cbc72b4895e77fc14ab30218e380e38558f062aef52a"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-09.json",
+                "role": "power_report",
+                "sha256": "17a85c5e1b4024b9f9795dfd3f9a302bc6e6f9a143501086f54ad51b379f2686"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-10.json",
+                "role": "power_report",
+                "sha256": "af509534b381e26a22bc9ea89977c8736c402c192e0eef704618b3eee45eeeb6"
+            },
+            {
+                "byte_count": 4655337,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-11.json",
+                "role": "power_report",
+                "sha256": "32a945dd1890fe6f78884446c7374237b68370b10813744aaefcf262c16aa290"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-12.json",
+                "role": "power_report",
+                "sha256": "8542d7a519b01128d7f797f6a158d3867d18ab8b92479d0dbcc3e02f19577f32"
+            },
+            {
+                "byte_count": 4655337,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-13.json",
+                "role": "power_report",
+                "sha256": "d0e4ba924030d7bbd86fd9c7aaf25fdcdfdd9dfab3e5642cc575376e60d4b9b7"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-14.json",
+                "role": "power_report",
+                "sha256": "5daf77763ff178889447c1d0ab0de505412c69527318422b54055df54947bce5"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-15.json",
+                "role": "power_report",
+                "sha256": "319e95e1aeb07141e0c3e7a2e781d53745410eb183922614b60621c282fc1c34"
+            },
+            {
+                "byte_count": 4640706,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-16.json",
+                "role": "power_report",
+                "sha256": "ba6a0f0b793cdc1ad021275c0e83b019ba02b31ad97272d0b39461812c80ce47"
+            },
+            {
+                "byte_count": 4743743,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-17.json",
+                "role": "power_report",
+                "sha256": "972815352827b249ca338c537ce259e562b903b3281a4b406aac8c7249973d52"
+            },
+            {
+                "byte_count": 4640710,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-18.json",
+                "role": "power_report",
+                "sha256": "4ea70a0452a9800d24574d902759d9c1aa19ee423f94ab976d585423f69c5b01"
+            },
+            {
+                "byte_count": 4743741,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-19.json",
+                "role": "power_report",
+                "sha256": "d5509d9cc7ccae162df5ffd21d6ffdb314b085b4549ce3cebbd5463b29a5de9a"
+            },
+            {
+                "byte_count": 4640706,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-20.json",
+                "role": "power_report",
+                "sha256": "43f603770cf111682fe1e231b559888556eba7bd425f5225e7ffe2a14f1316e9"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-21.json",
+                "role": "power_report",
+                "sha256": "f3476f97a3e0a4c53d88d5338e573b71023dffba2f573a8507aac2268b5b2a71"
+            },
+            {
+                "byte_count": 4640708,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-22.json",
+                "role": "power_report",
+                "sha256": "5e0aaa185f1e7435822e46f4a7ab09c41693f05dcec723be1c3a7d7543cb6e1c"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-23.json",
+                "role": "power_report",
+                "sha256": "c3a4ada4a099ed590d028cd8aa4aaf7c935e2667ca513ab68e4ffe9e19afe735"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-24.json",
+                "role": "power_report",
+                "sha256": "03782237d017abf2df3fa5f3e6d2358af32916f32a5cb173ed3896833030a784"
+            },
+            {
+                "byte_count": 4640714,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-25.json",
+                "role": "power_report",
+                "sha256": "0957fcc90deb3a5287e2286d97515c12634b2cc015a630809743a07b44a9d6c3"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-26.json",
+                "role": "power_report",
+                "sha256": "adfd1a952218d74664ed37aa703c711a49c7df056bd4cddd834ee517c480c7e3"
+            },
+            {
+                "byte_count": 4640710,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-27.json",
+                "role": "power_report",
+                "sha256": "fbe5c9c9ad22fb3f4df024b532c0b081a66d085bb4c8cfcff06d1e73ac37ab44"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-28.json",
+                "role": "power_report",
+                "sha256": "524a5c0e14f4d260dd7f6646b6ddbf869f74ec77f6f7aee7ac3f95a64a6ee8eb"
+            },
+            {
+                "byte_count": 4640712,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-29.json",
+                "role": "power_report",
+                "sha256": "648247f2d60b77d68181c740fa066318a04c62d24ec5348c7a535ff91d41920d"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-30.json",
+                "role": "power_report",
+                "sha256": "6e8818813d0ec5e76eda8b653f745292252752277eb811aaae71bbd088b511a8"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-31.json",
+                "role": "power_report",
+                "sha256": "405b31561a1e05478853f239d36abf12308ae4f7bf7d3d3c8e804da3bd4132cd"
+            },
+            {
+                "byte_count": 4641237,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-32.json",
+                "role": "power_report",
+                "sha256": "c7f0b82faf195e5569f567669b68503a455254bd7b37525e6f89369ea9817949"
+            },
+            {
+                "byte_count": 4744272,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-33.json",
+                "role": "power_report",
+                "sha256": "2499e4c78c0a5bba26c3298021fbcfbff4a33a1b986a8b17762d185ac430dc62"
+            },
+            {
+                "byte_count": 4641247,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-34.json",
+                "role": "power_report",
+                "sha256": "c8c59d79f9d3a6c62af983942ce634d199885e3d04165f439fe957cb4d6f2dae"
+            },
+            {
+                "byte_count": 4744297,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-35.json",
+                "role": "power_report",
+                "sha256": "97c0089325e6918251f11e83f0b811b83846a89ad48411bbbc3dbc9e082cff06"
+            },
+            {
+                "byte_count": 4641236,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-36.json",
+                "role": "power_report",
+                "sha256": "3df119da90e09dd5b4360f893064792bc690facb2824e5b4dc1de594b81a9238"
+            },
+            {
+                "byte_count": 4744278,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-37.json",
+                "role": "power_report",
+                "sha256": "bf76a2e258c1238632e6912505e6d4b33608434697cea949187479e39a61d0f2"
+            },
+            {
+                "byte_count": 4641209,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-38.json",
+                "role": "power_report",
+                "sha256": "d3d9cedb642a1391f28c1117f660085980a9cb976ad858c5d06d84b0e95bc648"
+            },
+            {
+                "byte_count": 4744290,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-39.json",
+                "role": "power_report",
+                "sha256": "4567c2ce2073e5761c785fd0f0152a4a9e4277cc5f6f0ea468e3bfbbf4195e67"
+            },
+            {
+                "byte_count": 4744274,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-40.json",
+                "role": "power_report",
+                "sha256": "e62478c244458dc6989f1b002e9dac0505e7c021d2185eef540049c0e87803ff"
+            },
+            {
+                "byte_count": 4641223,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-41.json",
+                "role": "power_report",
+                "sha256": "aaa8afcd311e3d91e553270eac7b26e7389d2661f76ea33c6daa10c63a1918dc"
+            },
+            {
+                "byte_count": 4744261,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-42.json",
+                "role": "power_report",
+                "sha256": "4da3f580931bf87e54d8a8d454a793a3056b2df54b8c1b18f1f0b2bf26f79a76"
+            },
+            {
+                "byte_count": 4641149,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-43.json",
+                "role": "power_report",
+                "sha256": "2495b75cefbeff26cfeb750cf250cff1bb5737112fae412eaa8131668112af3b"
+            },
+            {
+                "byte_count": 4744220,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-44.json",
+                "role": "power_report",
+                "sha256": "8c2845ab50a6819f7cadb53ca4705c379b4a33c454e4a12843309b63cf057d78"
+            },
+            {
+                "byte_count": 4641185,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-45.json",
+                "role": "power_report",
+                "sha256": "30331f693a8a9bd3f09347726ee696993d92e0c44209d2fa19f5c515b389e4fe"
+            },
+            {
+                "byte_count": 4744232,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-46.json",
+                "role": "power_report",
+                "sha256": "7a4c58a6199cac69797f97144beab258146afc758149e5b4fbbd918d8ac5ac9d"
+            },
+            {
+                "byte_count": 4744237,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-47.json",
+                "role": "power_report",
+                "sha256": "0b81985538610b679aec27a1ed60d265a6ed15af0a86df7787114d22cb1e9590"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-48.json",
+                "role": "power_report",
+                "sha256": "9a5124b2ca727124dd2565d243b616d3087d934a713fe268abfacd23baccc9a0"
+            },
+            {
+                "byte_count": 4744109,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-49.json",
+                "role": "power_report",
+                "sha256": "aed654421ed6721c161dd6ed1e001d8317d359542f2f71898993016a1592c5b3"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-50.json",
+                "role": "power_report",
+                "sha256": "9b5906167e02a5e8ba3d22604712444143bafb8a55e3cf2d0cff536adcfa260a"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-51.json",
+                "role": "power_report",
+                "sha256": "a3dc31b511786d5cfd31141a2d81db30999b9b1a0e38c6d877b853790bbdbafd"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-52.json",
+                "role": "power_report",
+                "sha256": "828f3a7980be5375aef3f38648e1571c2f9abc6863149f153ea12740ca15e272"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-53.json",
+                "role": "power_report",
+                "sha256": "6d5a0e8f1f36a2fb50fb9331f2bd6d71eddfac89984e5171b2b000e769900396"
+            },
+            {
+                "byte_count": 4641056,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-54.json",
+                "role": "power_report",
+                "sha256": "289bbbfa1d3531f9407dc1f6d8bc6a900f9f003aff8edb90c0c6da48db0d8a8f"
+            },
+            {
+                "byte_count": 4744118,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-55.json",
+                "role": "power_report",
+                "sha256": "552689b00a3aa8a5899d5e3254c016f9c89ab440a71411b85bc5e64fb751e557"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-56.json",
+                "role": "power_report",
+                "sha256": "e2daf2fc4ea7e48e287918cd4b1856be283b519802ab286023e6925a645a147e"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-57.json",
+                "role": "power_report",
+                "sha256": "b19ff6e33e1f1cfd1f8ddc6ca293feb8d49ec232b21e48504235d34a8c9bb497"
+            },
+            {
+                "byte_count": 4744107,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-58.json",
+                "role": "power_report",
+                "sha256": "02ab9acf33749808c5ecd1642eb32acd7ec1ec5dcc01877a45935ea39bb75c0b"
+            },
+            {
+                "byte_count": 4640998,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-59.json",
+                "role": "power_report",
+                "sha256": "4cce35c699071b3765f532434260e30c2aa1ec399016765be98171c261d3f364"
+            },
+            {
+                "byte_count": 4744069,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-60.json",
+                "role": "power_report",
+                "sha256": "b51f0c88a7f692202cdd96cdbf3eac68260625234a1912bcd4ea2a8e6a74dadf"
+            },
+            {
+                "byte_count": 4641042,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-61.json",
+                "role": "power_report",
+                "sha256": "729db2be5d2058d75f062658297d418098c922fc9d4eccda5d9ecb690e944bb8"
+            },
+            {
+                "byte_count": 4744093,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-62.json",
+                "role": "power_report",
+                "sha256": "b3c1832d5fc69ca9509ef30bdb2ac41c010fbf339d73c897b1ede80d40cbc829"
+            },
+            {
+                "byte_count": 4744095,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-63.json",
+                "role": "power_report",
+                "sha256": "51a77261e5391b942c262c41e379d21c7ea88ccb739bfdc3a9518238bc101d5c"
+            },
+            {
+                "byte_count": 23930,
+                "media_type": "application/json",
+                "relative_path": "c120-selection-gen0.json",
+                "role": "power_report",
+                "sha256": "59ad74c3860428cd50056ac89a9c75aabcc545c44d88df7b197251141069319b"
+            },
+            {
+                "byte_count": 26412,
+                "media_type": "application/json",
+                "relative_path": "c120-validation-gen0.json",
+                "role": "power_report",
+                "sha256": "4294ce40426b0b333b749d2722062ce01372e53b1f5a3e53aa3568648632851a"
+            }
+        ],
+        "authority_ref": {
+            "byte_count": 839,
+            "media_type": "application/vnd.pneuma.power-authority+json",
+            "relative_path": "authority.json",
+            "role": "power_authority",
+            "sha256": "249474bbe1ce23da65b024783edb54e5f08112034d9af054df541c6121643641"
+        },
+        "config_ref": {
+            "byte_count": 356,
+            "media_type": "application/json",
+            "relative_path": "power-contracts/09c20e24a657e805f611ada55440dedd1ea29ce871b5e65973efd997b5404755.json",
+            "role": "power_contract",
+            "sha256": "09c20e24a657e805f611ada55440dedd1ea29ce871b5e65973efd997b5404755"
+        },
+        "decision_authority": "roster_bound_selection",
+        "finalization": {
+            "decision": "GO",
+            "kind": "completed_chain",
+            "selected_generation": 0,
+            "selected_kernel_id": "power-final-gaussian-v1",
+            "selected_phase": "gaussian_approximation",
+            "selected_screen_ref": {
+                "byte_count": 3999,
+                "media_type": "application/json",
+                "relative_path": "c120-screen-gen0.json",
+                "role": "power_report",
+                "sha256": "787af9000bb90fb01699033352ef762a11d47f67d04607b4604a26ca1028556d"
+            },
+            "selected_selection_ref": {
+                "byte_count": 23930,
+                "media_type": "application/json",
+                "relative_path": "c120-selection-gen0.json",
+                "role": "power_report",
+                "sha256": "59ad74c3860428cd50056ac89a9c75aabcc545c44d88df7b197251141069319b"
+            },
+            "selected_shard_count": 64,
+            "selected_shard_refs": [
+                {
+                    "byte_count": 4655336,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-00.json",
+                    "role": "power_report",
+                    "sha256": "e61fd8927722239b99ac8f877f7d9127da5d785d35c780ff0a8115b6fc489b04"
+                },
+                {
+                    "byte_count": 4758704,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-01.json",
+                    "role": "power_report",
+                    "sha256": "12f3a6375fe977fb142bc68eae9c9ed537475a07e005790987d3e8b313881d4e"
+                },
+                {
+                    "byte_count": 4655336,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-02.json",
+                    "role": "power_report",
+                    "sha256": "ad856e426c8fed5d167008cb0b8f1a3263a1b685cd0d754dce296756d316cb5d"
+                },
+                {
+                    "byte_count": 4758704,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-03.json",
+                    "role": "power_report",
+                    "sha256": "f5b68ba71e1ff56c8607bc81913a50ea6c4913b32926dc42645ffff1dbedd115"
+                },
+                {
+                    "byte_count": 4655336,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-04.json",
+                    "role": "power_report",
+                    "sha256": "8a7cac646336369c50927541ce7979642200cd5a4118a7291e4461ea600d4abd"
+                },
+                {
+                    "byte_count": 4758704,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-05.json",
+                    "role": "power_report",
+                    "sha256": "d0c000072ce4ec9aa3859462b84c83f8457df220b15622aa7a7fcd57d0f779e3"
+                },
+                {
+                    "byte_count": 4655336,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-06.json",
+                    "role": "power_report",
+                    "sha256": "3c5995acada249d52bf2dbd321856a0c3016aec771555b1b6aeb5df2b86f2bf7"
+                },
+                {
+                    "byte_count": 4758704,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-07.json",
+                    "role": "power_report",
+                    "sha256": "94a7dab5ec2f8d2ff2625b6ee836c63ab5609aad70ea62c1f634d756a453521a"
+                },
+                {
+                    "byte_count": 4758704,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-08.json",
+                    "role": "power_report",
+                    "sha256": "b1b862b733418aba9c05cbc72b4895e77fc14ab30218e380e38558f062aef52a"
+                },
+                {
+                    "byte_count": 4655336,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-09.json",
+                    "role": "power_report",
+                    "sha256": "17a85c5e1b4024b9f9795dfd3f9a302bc6e6f9a143501086f54ad51b379f2686"
+                },
+                {
+                    "byte_count": 4758705,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-10.json",
+                    "role": "power_report",
+                    "sha256": "af509534b381e26a22bc9ea89977c8736c402c192e0eef704618b3eee45eeeb6"
+                },
+                {
+                    "byte_count": 4655337,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-11.json",
+                    "role": "power_report",
+                    "sha256": "32a945dd1890fe6f78884446c7374237b68370b10813744aaefcf262c16aa290"
+                },
+                {
+                    "byte_count": 4758705,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-12.json",
+                    "role": "power_report",
+                    "sha256": "8542d7a519b01128d7f797f6a158d3867d18ab8b92479d0dbcc3e02f19577f32"
+                },
+                {
+                    "byte_count": 4655337,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-13.json",
+                    "role": "power_report",
+                    "sha256": "d0e4ba924030d7bbd86fd9c7aaf25fdcdfdd9dfab3e5642cc575376e60d4b9b7"
+                },
+                {
+                    "byte_count": 4758705,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-14.json",
+                    "role": "power_report",
+                    "sha256": "5daf77763ff178889447c1d0ab0de505412c69527318422b54055df54947bce5"
+                },
+                {
+                    "byte_count": 4758705,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-15.json",
+                    "role": "power_report",
+                    "sha256": "319e95e1aeb07141e0c3e7a2e781d53745410eb183922614b60621c282fc1c34"
+                },
+                {
+                    "byte_count": 4640706,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-16.json",
+                    "role": "power_report",
+                    "sha256": "ba6a0f0b793cdc1ad021275c0e83b019ba02b31ad97272d0b39461812c80ce47"
+                },
+                {
+                    "byte_count": 4743743,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-17.json",
+                    "role": "power_report",
+                    "sha256": "972815352827b249ca338c537ce259e562b903b3281a4b406aac8c7249973d52"
+                },
+                {
+                    "byte_count": 4640710,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-18.json",
+                    "role": "power_report",
+                    "sha256": "4ea70a0452a9800d24574d902759d9c1aa19ee423f94ab976d585423f69c5b01"
+                },
+                {
+                    "byte_count": 4743741,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-19.json",
+                    "role": "power_report",
+                    "sha256": "d5509d9cc7ccae162df5ffd21d6ffdb314b085b4549ce3cebbd5463b29a5de9a"
+                },
+                {
+                    "byte_count": 4640706,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-20.json",
+                    "role": "power_report",
+                    "sha256": "43f603770cf111682fe1e231b559888556eba7bd425f5225e7ffe2a14f1316e9"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-21.json",
+                    "role": "power_report",
+                    "sha256": "f3476f97a3e0a4c53d88d5338e573b71023dffba2f573a8507aac2268b5b2a71"
+                },
+                {
+                    "byte_count": 4640708,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-22.json",
+                    "role": "power_report",
+                    "sha256": "5e0aaa185f1e7435822e46f4a7ab09c41693f05dcec723be1c3a7d7543cb6e1c"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-23.json",
+                    "role": "power_report",
+                    "sha256": "c3a4ada4a099ed590d028cd8aa4aaf7c935e2667ca513ab68e4ffe9e19afe735"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-24.json",
+                    "role": "power_report",
+                    "sha256": "03782237d017abf2df3fa5f3e6d2358af32916f32a5cb173ed3896833030a784"
+                },
+                {
+                    "byte_count": 4640714,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-25.json",
+                    "role": "power_report",
+                    "sha256": "0957fcc90deb3a5287e2286d97515c12634b2cc015a630809743a07b44a9d6c3"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-26.json",
+                    "role": "power_report",
+                    "sha256": "adfd1a952218d74664ed37aa703c711a49c7df056bd4cddd834ee517c480c7e3"
+                },
+                {
+                    "byte_count": 4640710,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-27.json",
+                    "role": "power_report",
+                    "sha256": "fbe5c9c9ad22fb3f4df024b532c0b081a66d085bb4c8cfcff06d1e73ac37ab44"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-28.json",
+                    "role": "power_report",
+                    "sha256": "524a5c0e14f4d260dd7f6646b6ddbf869f74ec77f6f7aee7ac3f95a64a6ee8eb"
+                },
+                {
+                    "byte_count": 4640712,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-29.json",
+                    "role": "power_report",
+                    "sha256": "648247f2d60b77d68181c740fa066318a04c62d24ec5348c7a535ff91d41920d"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-30.json",
+                    "role": "power_report",
+                    "sha256": "6e8818813d0ec5e76eda8b653f745292252752277eb811aaae71bbd088b511a8"
+                },
+                {
+                    "byte_count": 4743755,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-31.json",
+                    "role": "power_report",
+                    "sha256": "405b31561a1e05478853f239d36abf12308ae4f7bf7d3d3c8e804da3bd4132cd"
+                },
+                {
+                    "byte_count": 4641237,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-32.json",
+                    "role": "power_report",
+                    "sha256": "c7f0b82faf195e5569f567669b68503a455254bd7b37525e6f89369ea9817949"
+                },
+                {
+                    "byte_count": 4744272,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-33.json",
+                    "role": "power_report",
+                    "sha256": "2499e4c78c0a5bba26c3298021fbcfbff4a33a1b986a8b17762d185ac430dc62"
+                },
+                {
+                    "byte_count": 4641247,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-34.json",
+                    "role": "power_report",
+                    "sha256": "c8c59d79f9d3a6c62af983942ce634d199885e3d04165f439fe957cb4d6f2dae"
+                },
+                {
+                    "byte_count": 4744297,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-35.json",
+                    "role": "power_report",
+                    "sha256": "97c0089325e6918251f11e83f0b811b83846a89ad48411bbbc3dbc9e082cff06"
+                },
+                {
+                    "byte_count": 4641236,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-36.json",
+                    "role": "power_report",
+                    "sha256": "3df119da90e09dd5b4360f893064792bc690facb2824e5b4dc1de594b81a9238"
+                },
+                {
+                    "byte_count": 4744278,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-37.json",
+                    "role": "power_report",
+                    "sha256": "bf76a2e258c1238632e6912505e6d4b33608434697cea949187479e39a61d0f2"
+                },
+                {
+                    "byte_count": 4641209,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-38.json",
+                    "role": "power_report",
+                    "sha256": "d3d9cedb642a1391f28c1117f660085980a9cb976ad858c5d06d84b0e95bc648"
+                },
+                {
+                    "byte_count": 4744290,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-39.json",
+                    "role": "power_report",
+                    "sha256": "4567c2ce2073e5761c785fd0f0152a4a9e4277cc5f6f0ea468e3bfbbf4195e67"
+                },
+                {
+                    "byte_count": 4744274,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-40.json",
+                    "role": "power_report",
+                    "sha256": "e62478c244458dc6989f1b002e9dac0505e7c021d2185eef540049c0e87803ff"
+                },
+                {
+                    "byte_count": 4641223,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-41.json",
+                    "role": "power_report",
+                    "sha256": "aaa8afcd311e3d91e553270eac7b26e7389d2661f76ea33c6daa10c63a1918dc"
+                },
+                {
+                    "byte_count": 4744261,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-42.json",
+                    "role": "power_report",
+                    "sha256": "4da3f580931bf87e54d8a8d454a793a3056b2df54b8c1b18f1f0b2bf26f79a76"
+                },
+                {
+                    "byte_count": 4641149,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-43.json",
+                    "role": "power_report",
+                    "sha256": "2495b75cefbeff26cfeb750cf250cff1bb5737112fae412eaa8131668112af3b"
+                },
+                {
+                    "byte_count": 4744220,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-44.json",
+                    "role": "power_report",
+                    "sha256": "8c2845ab50a6819f7cadb53ca4705c379b4a33c454e4a12843309b63cf057d78"
+                },
+                {
+                    "byte_count": 4641185,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-45.json",
+                    "role": "power_report",
+                    "sha256": "30331f693a8a9bd3f09347726ee696993d92e0c44209d2fa19f5c515b389e4fe"
+                },
+                {
+                    "byte_count": 4744232,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-46.json",
+                    "role": "power_report",
+                    "sha256": "7a4c58a6199cac69797f97144beab258146afc758149e5b4fbbd918d8ac5ac9d"
+                },
+                {
+                    "byte_count": 4744237,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-47.json",
+                    "role": "power_report",
+                    "sha256": "0b81985538610b679aec27a1ed60d265a6ed15af0a86df7787114d22cb1e9590"
+                },
+                {
+                    "byte_count": 4641072,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-48.json",
+                    "role": "power_report",
+                    "sha256": "9a5124b2ca727124dd2565d243b616d3087d934a713fe268abfacd23baccc9a0"
+                },
+                {
+                    "byte_count": 4744109,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-49.json",
+                    "role": "power_report",
+                    "sha256": "aed654421ed6721c161dd6ed1e001d8317d359542f2f71898993016a1592c5b3"
+                },
+                {
+                    "byte_count": 4641072,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-50.json",
+                    "role": "power_report",
+                    "sha256": "9b5906167e02a5e8ba3d22604712444143bafb8a55e3cf2d0cff536adcfa260a"
+                },
+                {
+                    "byte_count": 4744115,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-51.json",
+                    "role": "power_report",
+                    "sha256": "a3dc31b511786d5cfd31141a2d81db30999b9b1a0e38c6d877b853790bbdbafd"
+                },
+                {
+                    "byte_count": 4641072,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-52.json",
+                    "role": "power_report",
+                    "sha256": "828f3a7980be5375aef3f38648e1571c2f9abc6863149f153ea12740ca15e272"
+                },
+                {
+                    "byte_count": 4744115,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-53.json",
+                    "role": "power_report",
+                    "sha256": "6d5a0e8f1f36a2fb50fb9331f2bd6d71eddfac89984e5171b2b000e769900396"
+                },
+                {
+                    "byte_count": 4641056,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-54.json",
+                    "role": "power_report",
+                    "sha256": "289bbbfa1d3531f9407dc1f6d8bc6a900f9f003aff8edb90c0c6da48db0d8a8f"
+                },
+                {
+                    "byte_count": 4744118,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-55.json",
+                    "role": "power_report",
+                    "sha256": "552689b00a3aa8a5899d5e3254c016f9c89ab440a71411b85bc5e64fb751e557"
+                },
+                {
+                    "byte_count": 4744115,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-56.json",
+                    "role": "power_report",
+                    "sha256": "e2daf2fc4ea7e48e287918cd4b1856be283b519802ab286023e6925a645a147e"
+                },
+                {
+                    "byte_count": 4641072,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-57.json",
+                    "role": "power_report",
+                    "sha256": "b19ff6e33e1f1cfd1f8ddc6ca293feb8d49ec232b21e48504235d34a8c9bb497"
+                },
+                {
+                    "byte_count": 4744107,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-58.json",
+                    "role": "power_report",
+                    "sha256": "02ab9acf33749808c5ecd1642eb32acd7ec1ec5dcc01877a45935ea39bb75c0b"
+                },
+                {
+                    "byte_count": 4640998,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-59.json",
+                    "role": "power_report",
+                    "sha256": "4cce35c699071b3765f532434260e30c2aa1ec399016765be98171c261d3f364"
+                },
+                {
+                    "byte_count": 4744069,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-60.json",
+                    "role": "power_report",
+                    "sha256": "b51f0c88a7f692202cdd96cdbf3eac68260625234a1912bcd4ea2a8e6a74dadf"
+                },
+                {
+                    "byte_count": 4641042,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-61.json",
+                    "role": "power_report",
+                    "sha256": "729db2be5d2058d75f062658297d418098c922fc9d4eccda5d9ecb690e944bb8"
+                },
+                {
+                    "byte_count": 4744093,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-62.json",
+                    "role": "power_report",
+                    "sha256": "b3c1832d5fc69ca9509ef30bdb2ac41c010fbf339d73c897b1ede80d40cbc829"
+                },
+                {
+                    "byte_count": 4744095,
+                    "media_type": "application/json",
+                    "relative_path": "power/shard-gen0-63.json",
+                    "role": "power_report",
+                    "sha256": "51a77261e5391b942c262c41e379d21c7ea88ccb739bfdc3a9518238bc101d5c"
+                }
+            ],
+            "selected_tier": 120,
+            "selected_validation_ref": {
+                "byte_count": 26412,
+                "media_type": "application/json",
+                "relative_path": "c120-validation-gen0.json",
+                "role": "power_report",
+                "sha256": "4294ce40426b0b333b749d2722062ce01372e53b1f5a3e53aa3568648632851a"
+            }
+        },
+        "generation": 0,
+        "grid_content_sha256": "4e1de380c9067213ca6e6e55bf8475e99db9026201a99b826c0d87dd0bb9d3f5",
+        "grid_ref": {
+            "byte_count": 1403,
+            "media_type": "application/json",
+            "relative_path": "sources/p0-power-grid.json",
+            "role": "power_grid",
+            "sha256": "4e1de380c9067213ca6e6e55bf8475e99db9026201a99b826c0d87dd0bb9d3f5"
+        },
+        "kernel_id": "power-final-gaussian-v1",
+        "numeric_contract": {
+            "clopper_pearson_max_iterations": 200,
+            "clopper_pearson_tolerance": 1e-12,
+            "gauss_hermite_order": 96,
+            "gauss_legendre_order": 128,
+            "gaussian_root_max_iterations": 200,
+            "gaussian_root_tolerance": 1e-10,
+            "numpy_version": "2.3.5",
+            "probability_tolerance": 1e-10
+        },
+        "numeric_fixture_ref": {
+            "byte_count": 356,
+            "media_type": "application/json",
+            "relative_path": "power-contracts/09c20e24a657e805f611ada55440dedd1ea29ce871b5e65973efd997b5404755.json",
+            "role": "power_contract",
+            "sha256": "09c20e24a657e805f611ada55440dedd1ea29ce871b5e65973efd997b5404755"
+        },
+        "parent_refs": [
+            {
+                "byte_count": 3999,
+                "media_type": "application/json",
+                "relative_path": "c120-screen-gen0.json",
+                "role": "power_report",
+                "sha256": "787af9000bb90fb01699033352ef762a11d47f67d04607b4604a26ca1028556d"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-00.json",
+                "role": "power_report",
+                "sha256": "e61fd8927722239b99ac8f877f7d9127da5d785d35c780ff0a8115b6fc489b04"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-01.json",
+                "role": "power_report",
+                "sha256": "12f3a6375fe977fb142bc68eae9c9ed537475a07e005790987d3e8b313881d4e"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-02.json",
+                "role": "power_report",
+                "sha256": "ad856e426c8fed5d167008cb0b8f1a3263a1b685cd0d754dce296756d316cb5d"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-03.json",
+                "role": "power_report",
+                "sha256": "f5b68ba71e1ff56c8607bc81913a50ea6c4913b32926dc42645ffff1dbedd115"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-04.json",
+                "role": "power_report",
+                "sha256": "8a7cac646336369c50927541ce7979642200cd5a4118a7291e4461ea600d4abd"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-05.json",
+                "role": "power_report",
+                "sha256": "d0c000072ce4ec9aa3859462b84c83f8457df220b15622aa7a7fcd57d0f779e3"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-06.json",
+                "role": "power_report",
+                "sha256": "3c5995acada249d52bf2dbd321856a0c3016aec771555b1b6aeb5df2b86f2bf7"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-07.json",
+                "role": "power_report",
+                "sha256": "94a7dab5ec2f8d2ff2625b6ee836c63ab5609aad70ea62c1f634d756a453521a"
+            },
+            {
+                "byte_count": 4758704,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-08.json",
+                "role": "power_report",
+                "sha256": "b1b862b733418aba9c05cbc72b4895e77fc14ab30218e380e38558f062aef52a"
+            },
+            {
+                "byte_count": 4655336,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-09.json",
+                "role": "power_report",
+                "sha256": "17a85c5e1b4024b9f9795dfd3f9a302bc6e6f9a143501086f54ad51b379f2686"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-10.json",
+                "role": "power_report",
+                "sha256": "af509534b381e26a22bc9ea89977c8736c402c192e0eef704618b3eee45eeeb6"
+            },
+            {
+                "byte_count": 4655337,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-11.json",
+                "role": "power_report",
+                "sha256": "32a945dd1890fe6f78884446c7374237b68370b10813744aaefcf262c16aa290"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-12.json",
+                "role": "power_report",
+                "sha256": "8542d7a519b01128d7f797f6a158d3867d18ab8b92479d0dbcc3e02f19577f32"
+            },
+            {
+                "byte_count": 4655337,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-13.json",
+                "role": "power_report",
+                "sha256": "d0e4ba924030d7bbd86fd9c7aaf25fdcdfdd9dfab3e5642cc575376e60d4b9b7"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-14.json",
+                "role": "power_report",
+                "sha256": "5daf77763ff178889447c1d0ab0de505412c69527318422b54055df54947bce5"
+            },
+            {
+                "byte_count": 4758705,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-15.json",
+                "role": "power_report",
+                "sha256": "319e95e1aeb07141e0c3e7a2e781d53745410eb183922614b60621c282fc1c34"
+            },
+            {
+                "byte_count": 4640706,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-16.json",
+                "role": "power_report",
+                "sha256": "ba6a0f0b793cdc1ad021275c0e83b019ba02b31ad97272d0b39461812c80ce47"
+            },
+            {
+                "byte_count": 4743743,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-17.json",
+                "role": "power_report",
+                "sha256": "972815352827b249ca338c537ce259e562b903b3281a4b406aac8c7249973d52"
+            },
+            {
+                "byte_count": 4640710,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-18.json",
+                "role": "power_report",
+                "sha256": "4ea70a0452a9800d24574d902759d9c1aa19ee423f94ab976d585423f69c5b01"
+            },
+            {
+                "byte_count": 4743741,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-19.json",
+                "role": "power_report",
+                "sha256": "d5509d9cc7ccae162df5ffd21d6ffdb314b085b4549ce3cebbd5463b29a5de9a"
+            },
+            {
+                "byte_count": 4640706,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-20.json",
+                "role": "power_report",
+                "sha256": "43f603770cf111682fe1e231b559888556eba7bd425f5225e7ffe2a14f1316e9"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-21.json",
+                "role": "power_report",
+                "sha256": "f3476f97a3e0a4c53d88d5338e573b71023dffba2f573a8507aac2268b5b2a71"
+            },
+            {
+                "byte_count": 4640708,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-22.json",
+                "role": "power_report",
+                "sha256": "5e0aaa185f1e7435822e46f4a7ab09c41693f05dcec723be1c3a7d7543cb6e1c"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-23.json",
+                "role": "power_report",
+                "sha256": "c3a4ada4a099ed590d028cd8aa4aaf7c935e2667ca513ab68e4ffe9e19afe735"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-24.json",
+                "role": "power_report",
+                "sha256": "03782237d017abf2df3fa5f3e6d2358af32916f32a5cb173ed3896833030a784"
+            },
+            {
+                "byte_count": 4640714,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-25.json",
+                "role": "power_report",
+                "sha256": "0957fcc90deb3a5287e2286d97515c12634b2cc015a630809743a07b44a9d6c3"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-26.json",
+                "role": "power_report",
+                "sha256": "adfd1a952218d74664ed37aa703c711a49c7df056bd4cddd834ee517c480c7e3"
+            },
+            {
+                "byte_count": 4640710,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-27.json",
+                "role": "power_report",
+                "sha256": "fbe5c9c9ad22fb3f4df024b532c0b081a66d085bb4c8cfcff06d1e73ac37ab44"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-28.json",
+                "role": "power_report",
+                "sha256": "524a5c0e14f4d260dd7f6646b6ddbf869f74ec77f6f7aee7ac3f95a64a6ee8eb"
+            },
+            {
+                "byte_count": 4640712,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-29.json",
+                "role": "power_report",
+                "sha256": "648247f2d60b77d68181c740fa066318a04c62d24ec5348c7a535ff91d41920d"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-30.json",
+                "role": "power_report",
+                "sha256": "6e8818813d0ec5e76eda8b653f745292252752277eb811aaae71bbd088b511a8"
+            },
+            {
+                "byte_count": 4743755,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-31.json",
+                "role": "power_report",
+                "sha256": "405b31561a1e05478853f239d36abf12308ae4f7bf7d3d3c8e804da3bd4132cd"
+            },
+            {
+                "byte_count": 4641237,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-32.json",
+                "role": "power_report",
+                "sha256": "c7f0b82faf195e5569f567669b68503a455254bd7b37525e6f89369ea9817949"
+            },
+            {
+                "byte_count": 4744272,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-33.json",
+                "role": "power_report",
+                "sha256": "2499e4c78c0a5bba26c3298021fbcfbff4a33a1b986a8b17762d185ac430dc62"
+            },
+            {
+                "byte_count": 4641247,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-34.json",
+                "role": "power_report",
+                "sha256": "c8c59d79f9d3a6c62af983942ce634d199885e3d04165f439fe957cb4d6f2dae"
+            },
+            {
+                "byte_count": 4744297,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-35.json",
+                "role": "power_report",
+                "sha256": "97c0089325e6918251f11e83f0b811b83846a89ad48411bbbc3dbc9e082cff06"
+            },
+            {
+                "byte_count": 4641236,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-36.json",
+                "role": "power_report",
+                "sha256": "3df119da90e09dd5b4360f893064792bc690facb2824e5b4dc1de594b81a9238"
+            },
+            {
+                "byte_count": 4744278,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-37.json",
+                "role": "power_report",
+                "sha256": "bf76a2e258c1238632e6912505e6d4b33608434697cea949187479e39a61d0f2"
+            },
+            {
+                "byte_count": 4641209,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-38.json",
+                "role": "power_report",
+                "sha256": "d3d9cedb642a1391f28c1117f660085980a9cb976ad858c5d06d84b0e95bc648"
+            },
+            {
+                "byte_count": 4744290,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-39.json",
+                "role": "power_report",
+                "sha256": "4567c2ce2073e5761c785fd0f0152a4a9e4277cc5f6f0ea468e3bfbbf4195e67"
+            },
+            {
+                "byte_count": 4744274,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-40.json",
+                "role": "power_report",
+                "sha256": "e62478c244458dc6989f1b002e9dac0505e7c021d2185eef540049c0e87803ff"
+            },
+            {
+                "byte_count": 4641223,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-41.json",
+                "role": "power_report",
+                "sha256": "aaa8afcd311e3d91e553270eac7b26e7389d2661f76ea33c6daa10c63a1918dc"
+            },
+            {
+                "byte_count": 4744261,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-42.json",
+                "role": "power_report",
+                "sha256": "4da3f580931bf87e54d8a8d454a793a3056b2df54b8c1b18f1f0b2bf26f79a76"
+            },
+            {
+                "byte_count": 4641149,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-43.json",
+                "role": "power_report",
+                "sha256": "2495b75cefbeff26cfeb750cf250cff1bb5737112fae412eaa8131668112af3b"
+            },
+            {
+                "byte_count": 4744220,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-44.json",
+                "role": "power_report",
+                "sha256": "8c2845ab50a6819f7cadb53ca4705c379b4a33c454e4a12843309b63cf057d78"
+            },
+            {
+                "byte_count": 4641185,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-45.json",
+                "role": "power_report",
+                "sha256": "30331f693a8a9bd3f09347726ee696993d92e0c44209d2fa19f5c515b389e4fe"
+            },
+            {
+                "byte_count": 4744232,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-46.json",
+                "role": "power_report",
+                "sha256": "7a4c58a6199cac69797f97144beab258146afc758149e5b4fbbd918d8ac5ac9d"
+            },
+            {
+                "byte_count": 4744237,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-47.json",
+                "role": "power_report",
+                "sha256": "0b81985538610b679aec27a1ed60d265a6ed15af0a86df7787114d22cb1e9590"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-48.json",
+                "role": "power_report",
+                "sha256": "9a5124b2ca727124dd2565d243b616d3087d934a713fe268abfacd23baccc9a0"
+            },
+            {
+                "byte_count": 4744109,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-49.json",
+                "role": "power_report",
+                "sha256": "aed654421ed6721c161dd6ed1e001d8317d359542f2f71898993016a1592c5b3"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-50.json",
+                "role": "power_report",
+                "sha256": "9b5906167e02a5e8ba3d22604712444143bafb8a55e3cf2d0cff536adcfa260a"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-51.json",
+                "role": "power_report",
+                "sha256": "a3dc31b511786d5cfd31141a2d81db30999b9b1a0e38c6d877b853790bbdbafd"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-52.json",
+                "role": "power_report",
+                "sha256": "828f3a7980be5375aef3f38648e1571c2f9abc6863149f153ea12740ca15e272"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-53.json",
+                "role": "power_report",
+                "sha256": "6d5a0e8f1f36a2fb50fb9331f2bd6d71eddfac89984e5171b2b000e769900396"
+            },
+            {
+                "byte_count": 4641056,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-54.json",
+                "role": "power_report",
+                "sha256": "289bbbfa1d3531f9407dc1f6d8bc6a900f9f003aff8edb90c0c6da48db0d8a8f"
+            },
+            {
+                "byte_count": 4744118,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-55.json",
+                "role": "power_report",
+                "sha256": "552689b00a3aa8a5899d5e3254c016f9c89ab440a71411b85bc5e64fb751e557"
+            },
+            {
+                "byte_count": 4744115,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-56.json",
+                "role": "power_report",
+                "sha256": "e2daf2fc4ea7e48e287918cd4b1856be283b519802ab286023e6925a645a147e"
+            },
+            {
+                "byte_count": 4641072,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-57.json",
+                "role": "power_report",
+                "sha256": "b19ff6e33e1f1cfd1f8ddc6ca293feb8d49ec232b21e48504235d34a8c9bb497"
+            },
+            {
+                "byte_count": 4744107,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-58.json",
+                "role": "power_report",
+                "sha256": "02ab9acf33749808c5ecd1642eb32acd7ec1ec5dcc01877a45935ea39bb75c0b"
+            },
+            {
+                "byte_count": 4640998,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-59.json",
+                "role": "power_report",
+                "sha256": "4cce35c699071b3765f532434260e30c2aa1ec399016765be98171c261d3f364"
+            },
+            {
+                "byte_count": 4744069,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-60.json",
+                "role": "power_report",
+                "sha256": "b51f0c88a7f692202cdd96cdbf3eac68260625234a1912bcd4ea2a8e6a74dadf"
+            },
+            {
+                "byte_count": 4641042,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-61.json",
+                "role": "power_report",
+                "sha256": "729db2be5d2058d75f062658297d418098c922fc9d4eccda5d9ecb690e944bb8"
+            },
+            {
+                "byte_count": 4744093,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-62.json",
+                "role": "power_report",
+                "sha256": "b3c1832d5fc69ca9509ef30bdb2ac41c010fbf339d73c897b1ede80d40cbc829"
+            },
+            {
+                "byte_count": 4744095,
+                "media_type": "application/json",
+                "relative_path": "power/shard-gen0-63.json",
+                "role": "power_report",
+                "sha256": "51a77261e5391b942c262c41e379d21c7ea88ccb739bfdc3a9518238bc101d5c"
+            },
+            {
+                "byte_count": 23930,
+                "media_type": "application/json",
+                "relative_path": "c120-selection-gen0.json",
+                "role": "power_report",
+                "sha256": "59ad74c3860428cd50056ac89a9c75aabcc545c44d88df7b197251141069319b"
+            },
+            {
+                "byte_count": 26412,
+                "media_type": "application/json",
+                "relative_path": "c120-validation-gen0.json",
+                "role": "power_report",
+                "sha256": "4294ce40426b0b333b749d2722062ce01372e53b1f5a3e53aa3568648632851a"
+            }
+        ],
+        "phase": "gaussian_approximation",
+        "power_tier": 120,
+        "rng_contract_sha256": "a8aa9d2878979b452eaf5fa1ab65ed3840341f2dfad6be2926e6b9743c09b961",
+        "roster_ref": {
+            "byte_count": 65047,
+            "media_type": "application/json",
+            "relative_path": "sources/c120-roster.json",
+            "role": "roster",
+            "sha256": "84cb4c727d7b38d116012ea6a5ff351079b4b6d70b0055a487952e89bfff2a63"
+        },
+        "screen_topology_ref": {
+            "byte_count": 210,
+            "media_type": "application/json",
+            "relative_path": "sources/p0-power-screen-topology.json",
+            "role": "power_screen_topology",
+            "sha256": "f2f1c0cc509e79d85650bff227371acd8b1e61538cd0f5c05c600530e1622b56"
+        },
+        "shard_count": 64,
+        "stage": "final",
+        "tier_membership_sha256": "1cc35eb577cf7d00bdc921f22ac6bbdb9bb193ab5cedd28c71bb3a998ced2bb1"
+    },
+    "provenance": {
+        "code_sha256": "e545770fdeaa38c47be7fbbed6771ec770d68e369d474f1d199670add91bdaf6",
+        "design_sha256": "ef117c7d247c6fd84af045acea13fb658fbe4cb12555e57a8436022693b507ce"
+    },
+    "record_kind": "resampling_power_report",
+    "schema_version": "0.1.0",
+    "study_id": "neurips-2026-resampling-null"
+}
