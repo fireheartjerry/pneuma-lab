@@ -1,0 +1,574 @@
+{
+  "action_id": "dual-l40s-qualification-019",
+  "binding": {
+    "action_id": "dual-l40s-qualification-019",
+    "authority_package_sha256": "96ffa5d0c2549af42a9acdb1a999f23c3bc2a0aa0011ec81e8e1e30f7e827bdc",
+    "iam_policy_sha256": "cd551ea6b3b689140b3cb8d4865b6c272b692d6bf7616930419b65c29583b81b",
+    "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+    "input_lock_sha256": "e6b93fcf4edbcad2406d9ab98df82de638571fc5bc45f9a97cfce730bd04c803",
+    "max_retries": 0,
+    "output_root": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-019/outputs/",
+    "region": "us-east-1",
+    "saved_plan_sha256": "baaa7620c4384d248244cece1f511de7731deb7fb5ad44231cf4d9626513a8f5",
+    "tags": {
+      "QualificationAction": "dual-l40s-qualification-019",
+      "QualificationActionId": "dual-l40s-qualification-019",
+      "QualificationCode": "fixture-only-qualification-code-019",
+      "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+      "QualificationPurpose": "dual-l40s-admission-only",
+      "QualificationTopology": "two-g6e-2xlarge-l40s"
+    },
+    "terraform_plan_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64",
+    "terraform_show_sha256": "ab65b5cb5078c47190385004f314723e6e3b75a9649768c2cf4849cd790a5554"
+  },
+  "binding_sha256": "0182759184dd74bff5e1d23c2b4562b81279f5ee6925f8f4507cc8782f7a3dae",
+  "events": [
+    {
+      "event_sha256": "e9f6b4de7f0a2f0aa14992b05f5bc985cd079f4b5c890ff1e6967720e0ded522",
+      "payload": {
+        "output_root": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-019/outputs/",
+        "preflight": {
+          "provider_absence": {
+            "artifact_prefix": {
+              "empty": true,
+              "object_count": 0
+            },
+            "compute_environment": true,
+            "instances": true,
+            "job_definition": true,
+            "jobs": true,
+            "launch_template": true,
+            "network_interfaces": true,
+            "provider_history": {
+              "inactive_job_definition_arn_sha256": null,
+              "inactive_job_definition_history_retained_by_aws": false
+            },
+            "queue": true,
+            "security_group": true,
+            "volumes": true
+          }
+        },
+        "terraform_plan_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64"
+      },
+      "phase": "prepared",
+      "previous_event_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sequence": 1
+    },
+    {
+      "event_sha256": "c547abf28324e94e7126fba7f3a660453d4616af0df67c13c056cde5645d4c66",
+      "payload": {
+        "plan_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64"
+      },
+      "phase": "applying",
+      "previous_event_sha256": "e9f6b4de7f0a2f0aa14992b05f5bc985cd079f4b5c890ff1e6967720e0ded522",
+      "sequence": 2
+    },
+    {
+      "event_sha256": "094cbb47ad174b1de653a562e7ad097404cfe7c49ec202c33f40fcf41c054e4d",
+      "payload": {
+        "plan_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64"
+      },
+      "phase": "applied",
+      "previous_event_sha256": "c547abf28324e94e7126fba7f3a660453d4616af0df67c13c056cde5645d4c66",
+      "sequence": 3
+    },
+    {
+      "event_sha256": "8ded54c83f5fec39204503d23b489f33f19e6e88d87be2ba2f1f6f8762f177f3",
+      "payload": {
+        "compute_environment_status": "VALID",
+        "queue_status": "VALID"
+      },
+      "phase": "ready",
+      "previous_event_sha256": "094cbb47ad174b1de653a562e7ad097404cfe7c49ec202c33f40fcf41c054e4d",
+      "sequence": 4
+    },
+    {
+      "event_sha256": "445ea064beff89d816cccf2d5174c102e5cb5a18855e893c37a2ff620bd83a38",
+      "payload": {
+        "array_size": 2,
+        "attempts": 1,
+        "timeout_seconds": 3600
+      },
+      "phase": "submitting",
+      "previous_event_sha256": "8ded54c83f5fec39204503d23b489f33f19e6e88d87be2ba2f1f6f8762f177f3",
+      "sequence": 5
+    },
+    {
+      "event_sha256": "5f2a98cf11f9480ab971f9fbc422e82407317c82422cf406422a198f9c9767e2",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "submission_reconciled": true,
+        "submit_count": 0
+      },
+      "phase": "submitted",
+      "previous_event_sha256": "445ea064beff89d816cccf2d5174c102e5cb5a18855e893c37a2ff620bd83a38",
+      "sequence": 6
+    },
+    {
+      "event_sha256": "623f2090f42379d90cb3987b898aa9f89c6e867d26e1a497d6e5c8f6ca0a8cdb",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "launch": {
+          "array_size": 2,
+          "cloudtrail_submit_job_event_id_sha256": "1326517e41c839f2ff609a1734ec5e87b823c69674cac679d574061490d4f677",
+          "retry_attempts": 1,
+          "submit_count_proven": 1
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "launch_reconciled",
+      "previous_event_sha256": "5f2a98cf11f9480ab971f9fbc422e82407317c82422cf406422a198f9c9767e2",
+      "sequence": 7
+    },
+    {
+      "event_sha256": "77c65598973b8fd9573dab5f5c9c5db1ecfffa889cc6f097b2ee7f34b0d2a9b3",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "observing",
+      "previous_event_sha256": "623f2090f42379d90cb3987b898aa9f89c6e867d26e1a497d6e5c8f6ca0a8cdb",
+      "sequence": 8
+    },
+    {
+      "event_sha256": "b0ec711c73e0c8f2bfb32d49af8f8bb644939182b6436f31efd956296342d294",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "observing",
+        "resumed": true
+      },
+      "phase": "observing",
+      "previous_event_sha256": "77c65598973b8fd9573dab5f5c9c5db1ecfffa889cc6f097b2ee7f34b0d2a9b3",
+      "sequence": 9
+    },
+    {
+      "event_sha256": "9a2bd0c715c8f22b768a5d6464672b1593c06518c46b4423b7c40e415daa0264",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "evidence": {
+          "child_statuses": [
+            {
+              "array_index": 0,
+              "attempt_count": 1,
+              "job_id": "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+              "status": "SUCCEEDED"
+            },
+            {
+              "array_index": 1,
+              "attempt_count": 1,
+              "job_id": "3c260c79-4595-4aa7-820b-25f8fc349324:1",
+              "status": "SUCCEEDED"
+            }
+          ],
+          "instance_id_count": 2,
+          "parent_status": "SUCCEEDED",
+          "raw_artifact_sha256": {
+            "0": "793e77f6a4e7e5456e885888c38a2f1c63abe0553fdbd879ee29e7eabfad9743",
+            "1": "6613dbf8f72e99532ba2c5d5be56b92135d5abaf646b044cb2e4084bf7f50a69"
+          }
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "admission_reconciled",
+      "previous_event_sha256": "b0ec711c73e0c8f2bfb32d49af8f8bb644939182b6436f31efd956296342d294",
+      "sequence": 10
+    },
+    {
+      "event_sha256": "a56f2bcd31ebd6c23a13051c88c722a99534576666a1becf8413bcbf4449963b",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "evidence": {
+          "artifact_reconciliation": {
+            "object_count": 2,
+            "worker_indices": [
+              0,
+              1
+            ],
+            "worker_object_count": 2
+          },
+          "child_statuses": [
+            {
+              "array_index": 0,
+              "attempt_count": 1,
+              "job_id": "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+              "status": "SUCCEEDED"
+            },
+            {
+              "array_index": 1,
+              "attempt_count": 1,
+              "job_id": "3c260c79-4595-4aa7-820b-25f8fc349324:1",
+              "status": "SUCCEEDED"
+            }
+          ],
+          "instance_id_count": 2,
+          "parent_status": "SUCCEEDED",
+          "raw_artifact_sha256": {
+            "0": "793e77f6a4e7e5456e885888c38a2f1c63abe0553fdbd879ee29e7eabfad9743",
+            "1": "6613dbf8f72e99532ba2c5d5be56b92135d5abaf646b044cb2e4084bf7f50a69"
+          }
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "artifact_reconciled",
+      "previous_event_sha256": "9a2bd0c715c8f22b768a5d6464672b1593c06518c46b4423b7c40e415daa0264",
+      "sequence": 11
+    },
+    {
+      "event_sha256": "f8c85a38edf797494fb3a9fd21c112f76fc709b0b92139d4ef41ec3091d1ad0a",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "recovering",
+      "previous_event_sha256": "a56f2bcd31ebd6c23a13051c88c722a99534576666a1becf8413bcbf4449963b",
+      "sequence": 12
+    },
+    {
+      "event_sha256": "bd5d7da332d1c47f096ac79c9407e4d3991efa9243bd733e27a9feea7e9718e6",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "recovery": {
+          "boundary_sha256": "279734994f5e32893f275cd65f36410627d42a739ad0c102bf7da222d78ad88b",
+          "freeze": {
+            "completed": true,
+            "requested": true
+          },
+          "operations": [
+            "describe_jobs_before",
+            "freeze_completed_boundary",
+            "restore_completed_boundary",
+            "describe_jobs_after"
+          ],
+          "restore": {
+            "completed": true,
+            "requested": true
+          },
+          "restored_completed_boundary": true
+        }
+      },
+      "phase": "recovery_reconciled",
+      "previous_event_sha256": "f8c85a38edf797494fb3a9fd21c112f76fc709b0b92139d4ef41ec3091d1ad0a",
+      "sequence": 13
+    },
+    {
+      "event_sha256": "f85c933ed5de99ce979a6488a250152644224e9fd755423ea016178ce30c7b5f",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": null,
+        "outcome": "passed",
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "recovery": {
+          "boundary_sha256": "279734994f5e32893f275cd65f36410627d42a739ad0c102bf7da222d78ad88b",
+          "freeze": {
+            "completed": true,
+            "requested": true
+          },
+          "operations": [
+            "describe_jobs_before",
+            "freeze_completed_boundary",
+            "restore_completed_boundary",
+            "describe_jobs_after"
+          ],
+          "restore": {
+            "completed": true,
+            "requested": true
+          },
+          "restored_completed_boundary": true
+        }
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "bd5d7da332d1c47f096ac79c9407e4d3991efa9243bd733e27a9feea7e9718e6",
+      "sequence": 14
+    },
+    {
+      "event_sha256": "0f16ab817510956402f084d9ac5b6e7e0946b12dc889ad839e74b066bb3f7394",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown found residual action-scoped provider resources",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "f85c933ed5de99ce979a6488a250152644224e9fd755423ea016178ce30c7b5f",
+      "sequence": 15
+    },
+    {
+      "event_sha256": "70a032e6eb8b274f78f99cae7155641eec16594caa17f959e111f299ffc2be05",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown found residual action-scoped provider resources",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "teardown_failed",
+        "resumed": true
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "0f16ab817510956402f084d9ac5b6e7e0946b12dc889ad839e74b066bb3f7394",
+      "sequence": 16
+    },
+    {
+      "event_sha256": "c217b4b6137459ecea68ff3c48de3f0adf651438b4124d274f512dcc92909ceb",
+      "payload": {
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resumed": true,
+        "retry": true
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "70a032e6eb8b274f78f99cae7155641eec16594caa17f959e111f299ffc2be05",
+      "sequence": 17
+    },
+    {
+      "event_sha256": "3f5ee50f692ddb7cb67835bcb1211dfb91a0f10bb56d67fab374ed6e7ac2ecb5",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "provider subprocess failed for batch update-job-queue (error_code=ClientException, stderr_sha256=f383a27bc9f1312fff5e19dee8340045d400d5e0586651be2ac3636f502ae27f)",
+          "error_code": "ClientException",
+          "error_type": "ProviderSubprocessError",
+          "operation": "batch update-job-queue",
+          "retryable": false,
+          "stderr_sha256": "f383a27bc9f1312fff5e19dee8340045d400d5e0586651be2ac3636f502ae27f"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "c217b4b6137459ecea68ff3c48de3f0adf651438b4124d274f512dcc92909ceb",
+      "sequence": 18
+    },
+    {
+      "event_sha256": "657ddef6288dce31815f93ec00e4f7ffea81850fef968da725f684fa44bcf593",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "provider subprocess failed for batch update-job-queue (error_code=ClientException, stderr_sha256=f383a27bc9f1312fff5e19dee8340045d400d5e0586651be2ac3636f502ae27f)",
+          "error_code": "ClientException",
+          "error_type": "ProviderSubprocessError",
+          "operation": "batch update-job-queue",
+          "retryable": false,
+          "stderr_sha256": "f383a27bc9f1312fff5e19dee8340045d400d5e0586651be2ac3636f502ae27f"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "teardown_failed",
+        "resumed": true
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "3f5ee50f692ddb7cb67835bcb1211dfb91a0f10bb56d67fab374ed6e7ac2ecb5",
+      "sequence": 19
+    },
+    {
+      "event_sha256": "0536ce0b51793cc625db9d0dc2dd6b9e962847a7a5e69dca308cd580a624b875",
+      "payload": {
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resumed": true,
+        "retry": true
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "657ddef6288dce31815f93ec00e4f7ffea81850fef968da725f684fa44bcf593",
+      "sequence": 20
+    },
+    {
+      "event_sha256": "6aa6f73d8b7c11587199f5c77505e964f52d8541fc3b7c36b0076cfa4b63b8ac",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown found residual action-scoped provider resources",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "0536ce0b51793cc625db9d0dc2dd6b9e962847a7a5e69dca308cd580a624b875",
+      "sequence": 21
+    },
+    {
+      "event_sha256": "28bb57bde76bec86979fd47f0213174b72d95bf4ee9d05ad34ab94813a83116e",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown found residual action-scoped provider resources",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "teardown_failed",
+        "resumed": true
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "6aa6f73d8b7c11587199f5c77505e964f52d8541fc3b7c36b0076cfa4b63b8ac",
+      "sequence": 22
+    },
+    {
+      "event_sha256": "e1e7e8ff5e2468153842982a1e3ed95961d9320cfc2b9169e0f3ee36021eed66",
+      "payload": {
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resumed": true,
+        "retry": true
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "28bb57bde76bec86979fd47f0213174b72d95bf4ee9d05ad34ab94813a83116e",
+      "sequence": 23
+    },
+    {
+      "event_sha256": "1b3d0b7929a9bb52550dcfab2148426586b41c3a3c81c1517eddcb7d01d0e879",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown retained artifact count differs from the exact evidence contract",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "e1e7e8ff5e2468153842982a1e3ed95961d9320cfc2b9169e0f3ee36021eed66",
+      "sequence": 24
+    },
+    {
+      "event_sha256": "cf45f8ab599c9144e85f92765a78183fb91e908fdaea8f598190b004af5df9fd",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown retained artifact count differs from the exact evidence contract",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "teardown_failed",
+        "resumed": true
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "1b3d0b7929a9bb52550dcfab2148426586b41c3a3c81c1517eddcb7d01d0e879",
+      "sequence": 25
+    },
+    {
+      "event_sha256": "f96e54aa9d26eaaa597ba83e6208dc296f960004b6fb0746e420db4b4f51a1b3",
+      "payload": {
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resumed": true,
+        "retry": true
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "cf45f8ab599c9144e85f92765a78183fb91e908fdaea8f598190b004af5df9fd",
+      "sequence": 26
+    },
+    {
+      "event_sha256": "b949e3a23e8df45cb4973214654f640c23402dc8164941f8943296cba8940dd7",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown retained artifact count differs from the exact evidence contract",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "f96e54aa9d26eaaa597ba83e6208dc296f960004b6fb0746e420db4b4f51a1b3",
+      "sequence": 27
+    },
+    {
+      "event_sha256": "2147519be26eb20508e9016477961453daad37306c3554a8c3c626a356e12728",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "failure": {
+          "error": "qualification teardown retained artifact count differs from the exact evidence contract",
+          "error_type": "CloudManifestError"
+        },
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resume_from": "teardown_failed",
+        "resumed": true
+      },
+      "phase": "teardown_failed",
+      "previous_event_sha256": "b949e3a23e8df45cb4973214654f640c23402dc8164941f8943296cba8940dd7",
+      "sequence": 28
+    },
+    {
+      "event_sha256": "90c3d914fdd630820305f57def571e94c650e51711d1402bb1c092490db4c145",
+      "payload": {
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324",
+        "resumed": true,
+        "retry": true
+      },
+      "phase": "teardown_started",
+      "previous_event_sha256": "2147519be26eb20508e9016477961453daad37306c3554a8c3c626a356e12728",
+      "sequence": 29
+    },
+    {
+      "event_sha256": "203e19eaf54360f02b94499da8a7421a61c1fe9f4728baa97bb393822c25f3e8",
+      "payload": {
+        "child_job_ids": [
+          "3c260c79-4595-4aa7-820b-25f8fc349324:0",
+          "3c260c79-4595-4aa7-820b-25f8fc349324:1"
+        ],
+        "outcome": "passed",
+        "parent_job_id": "3c260c79-4595-4aa7-820b-25f8fc349324"
+      },
+      "phase": "teardown_complete",
+      "previous_event_sha256": "90c3d914fdd630820305f57def571e94c650e51711d1402bb1c092490db4c145",
+      "sequence": 30
+    }
+  ],
+  "record_kind": "cloud_qualification_controller_state",
+  "schema_version": "0.1.0",
+  "state_sha256": "2068a4ee663955d9c795a7d4317654ede01fbf185ba907d03aa2081820292a45"
+}

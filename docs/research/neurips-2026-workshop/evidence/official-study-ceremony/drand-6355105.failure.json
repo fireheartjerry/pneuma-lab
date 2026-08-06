@@ -1,0 +1,21 @@
+{
+  "record_kind": "resampling_roster_ceremony_external_failure",
+  "schema_version": "0.1.0",
+  "evidence_class": "ceremony_precondition_failure",
+  "authorizing": false,
+  "study_id": "neurips-2026-resampling-null",
+  "precommit_sha256": "0ec4db0d333efd5062684088859a4506aebb3f9a6a6a1ee992e9b771d20c20b3",
+  "chain_hash": "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce",
+  "round": 6355105,
+  "request_url": "https://api.drand.sh/8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce/public/6355105",
+  "response": {
+    "http_status": 425,
+    "body": "Requested future beacon",
+    "headers_path": "drand-6355105.response.headers",
+    "headers_sha256": "f53b874da75436c6d1bda67c2d0dc6d7f5572524a199fef621cc0c81b76772cc",
+    "body_path": "drand-6355105.response.body",
+    "body_sha256": "383a1158e39a68b9cc8ec4a8dda2ef7fe7d2d3ab00f7318087d4f9a96439f91"
+  },
+  "interpretation": "The frozen future mainnet round has not been emitted. No randomness, proof, eligibility manifest, ceremony receipt, power report, tier, or official authority was created.",
+  "required_external_action": "Wait until registered mainnet round 6355105 exists, then rerun the exact frozen ceremony command without changing precommit, policy, inputs, or selection program."
+}

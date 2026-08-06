@@ -69,3 +69,12 @@ datasets_cache/
 *.tfplan
 infra/terraform/environments/*.tfvars
 !infra/terraform/environments/aws-example.tfvars
+
+# Regenerable local research/build products. Keep compact canonical receipts
+# tracked explicitly; do not commit repeated SBOM trees or graph exports.
+/graphify-out/
+/repository-evidence-*.zip
+/docs/research/neurips-2026-workshop/evidence/official-study-input-package-20260804/
+/docs/research/neurips-2026-workshop/evidence/official-study-prelaunch-v*/
+/docs/research/neurips-2026-workshop/evidence/official-study-ceremony/*.response.body
+/docs/research/neurips-2026-workshop/evidence/official-study-ceremony/*.response.headers

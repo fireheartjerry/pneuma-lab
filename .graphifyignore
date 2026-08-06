@@ -1,0 +1,7 @@
+# JSON Schema files defeat graphify's data-JSON heuristic (#1224): they carry
+# $schema/$ref, so _is_config_json classifies them as config and walks every
+# key to depth 6. Result on this repo: 12,055 nodes (45% of the graph) that are
+# JSON Schema *syntax* (type x1833, $ref x561, additionalProperties x428),
+# not concepts. They bloat every query budget and corrupt label matching.
+schemas/
+*.schema.json
