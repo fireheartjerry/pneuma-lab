@@ -126,7 +126,21 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
             Resources=[route_table_id],
             Tags=[*tag_rows, {"Key": "Purpose", "Value": "official-public-egress"}],
         )
+    routes = ec2.describe_route_tables(RouteTableIds=[route_table_id])["RouteTables"][
+        0
+    ].get("Routes", [])
+    default_route = next(
+        (row for row in routes if row.get("DestinationCidrBlock") == "0.0.0.0/0"),
+        None,
+    )
+    if default_route is None:
         ec2.create_route(
+            RouteTableId=route_table_id,
+            DestinationCidrBlock="0.0.0.0/0",
+            GatewayId=gateway_id,
+        )
+    elif default_route.get("GatewayId") != gateway_id:
+        ec2.replace_route(
             RouteTableId=route_table_id,
             DestinationCidrBlock="0.0.0.0/0",
             GatewayId=gateway_id,
@@ -227,7 +241,13 @@ def _ensure_launch_template(ec2: Any, action_id: str, tags: dict[str, str]) -> t
         version = str(templates[0]["LatestVersionNumber"])
         return template_id, version
     tag_rows = [{"Key": key, "Value": value} for key, value in tags.items()]
-    user_data = """#!/bin/bash
+    user_data = """MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="PNEUMA_BATCH"
+
+--PNEUMA_BATCH
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
 set -euo pipefail
 if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
   fallocate -l 64G /swapfile
@@ -235,6 +255,7 @@ if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
   mkswap /swapfile
   swapon /swapfile
 fi
+--PNEUMA_BATCH--
 """
     response = ec2.create_launch_template(
         LaunchTemplateName=name,
