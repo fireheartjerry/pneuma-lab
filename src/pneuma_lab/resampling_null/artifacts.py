@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 import hashlib
 import json
 import mimetypes
+import os
 from pathlib import Path, PurePosixPath
 import tempfile
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -3809,6 +3811,68 @@ def _validate_power_transitions(nonfinal: Sequence["_ScientificDocument"]) -> No
         )
 
 
+def _validate_power_document_identity(
+    document: _ScientificDocument,
+    run_root: Path,
+) -> None:
+    """Replay one power document's authority-bound identity and evidence."""
+
+    # Importing here avoids a module-import cycle with the generic artifact IO
+    # and keeps this worker safe to import under multiprocessing ``spawn``.
+    from .power import (_roster_group_sizes, _roster_joint_group_labels, grid_content_sha256, load_power_authority,
+                        load_power_config, validate_power_execution_receipt)
+
+    payload = _power_payload(document)
+    authority_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["authority_ref"])))
+    authority = load_power_authority(authority_ref, run_root=run_root)
+    grid_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["grid_ref"])))
+    topology_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["screen_topology_ref"])))
+    tier = payload.get("power_tier") if authority.authority_kind == "roster_bound_selection" else None
+    power_config = load_power_config(
+        authority_ref,
+        grid_ref,
+        topology_ref,
+        run_root=run_root,
+        tier=tier if type(tier) is int else None,
+    )
+    if authority.authority_kind == "roster_bound_selection" and power_config.tier != tier:
+        raise RecordValidationError("roster power report is not bound to one explicit C120/C160 tier")
+    if payload["decision_authority"] != authority.authority_kind:
+        raise RecordValidationError("power decision_authority is not derived from authority_ref")
+    _require_artifact_ref_equal(
+        payload["roster_ref"],
+        _ref_mapping(authority.roster_ref),
+        field="power roster_ref",
+    )
+    if payload["tier_membership_sha256"] != authority.tier_membership_sha256:
+        raise RecordValidationError("power tier_membership_sha256 is not derived from authority_ref")
+    if payload["rng_contract_sha256"] != power_config.rng_contract_sha256:
+        raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
+    if payload["grid_content_sha256"] != grid_content_sha256(
+        grid_ref, run_root=run_root, authority_kind=authority.authority_kind,
+    ):
+        raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
+    if payload["stage"] == "shard":
+        from .power import _load_power_grid
+        layout = _roster_group_sizes(authority, run_root=run_root, tier=power_config.tier)
+        joint_group_labels = _roster_joint_group_labels(
+            authority, run_root=run_root, tier=power_config.tier
+        )
+        grid = _load_power_grid(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
+        for result in cast(list[Mapping[str, object]], payload["cell_results"]):
+            validate_power_execution_receipt(result, authority=authority,
+                grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout,
+                joint_group_labels=joint_group_labels, grid=grid)
+
+
+def _validate_power_document_identity_job(
+    job: tuple[_ScientificDocument, Path],
+) -> None:
+    """Pickle-safe process-pool adapter with deterministic input ordering."""
+
+    _validate_power_document_identity(*job)
+
+
 def _validate_power_identities(
     documents: Sequence[_ScientificDocument],
     *,
@@ -3820,55 +3884,33 @@ def _validate_power_identities(
     ``require_final`` is False only for the pre-final attempt ledger a
     finalizer discovers: at that moment exactly zero finals exist by
     construction, and demanding one would make finalization unreachable.
-    """
-    # The authority blob is a referenced, closed contract rather than a
-    # scientific record kind.  Validate it before trusting any report mirrors.
-    # Importing here avoids a module-import cycle with the generic artifact IO.
-    from .power import (_roster_group_sizes, _roster_joint_group_labels, grid_content_sha256, load_power_authority,
-                        load_power_config, validate_power_execution_receipt)
 
-    for document in documents:
-        payload = _power_payload(document)
-        authority_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["authority_ref"])))
-        authority = load_power_authority(authority_ref, run_root=run_root)
-        grid_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["grid_ref"])))
-        topology_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["screen_topology_ref"])))
-        tier = payload.get("power_tier") if authority.authority_kind == "roster_bound_selection" else None
-        power_config = load_power_config(
-            authority_ref,
-            grid_ref,
-            topology_ref,
-            run_root=run_root,
-            tier=tier if type(tier) is int else None,
-        )
-        if authority.authority_kind == "roster_bound_selection" and power_config.tier != tier:
-            raise RecordValidationError("roster power report is not bound to one explicit C120/C160 tier")
-        if payload["decision_authority"] != authority.authority_kind:
-            raise RecordValidationError("power decision_authority is not derived from authority_ref")
-        _require_artifact_ref_equal(
-            payload["roster_ref"],
-            _ref_mapping(authority.roster_ref),
-            field="power roster_ref",
-        )
-        if payload["tier_membership_sha256"] != authority.tier_membership_sha256:
-            raise RecordValidationError("power tier_membership_sha256 is not derived from authority_ref")
-        if payload["rng_contract_sha256"] != power_config.rng_contract_sha256:
-            raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
-        if payload["grid_content_sha256"] != grid_content_sha256(
-            grid_ref, run_root=run_root, authority_kind=authority.authority_kind,
-        ):
-            raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
-        if payload["stage"] == "shard":
-            from .power import _load_power_grid
-            layout = _roster_group_sizes(authority, run_root=run_root, tier=power_config.tier)
-            joint_group_labels = _roster_joint_group_labels(
-                authority, run_root=run_root, tier=power_config.tier
-            )
-            grid = _load_power_grid(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
-            for result in cast(list[Mapping[str, object]], payload["cell_results"]):
-                validate_power_execution_receipt(result, authority=authority,
-                    grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout,
-                    joint_group_labels=joint_group_labels, grid=grid)
+    Production shard receipts are deliberately expensive to replay.  On POSIX
+    hosts they are checked in the same frozen 16-worker topology used by the
+    registered power screen.  ``executor.map`` preserves document order, so
+    failures remain deterministic while the validation semantics stay exact.
+    """
+    shard_documents = [
+        document
+        for document in documents
+        if _power_payload(document)["stage"] == "shard"
+    ]
+    non_shard_documents = [
+        document
+        for document in documents
+        if _power_payload(document)["stage"] != "shard"
+    ]
+    for document in non_shard_documents:
+        _validate_power_document_identity(document, run_root)
+    if os.name == "posix" and len(shard_documents) > 1:
+        worker_count = min(16, os.cpu_count() or 1, len(shard_documents))
+        jobs = ((document, run_root) for document in shard_documents)
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            tuple(executor.map(_validate_power_document_identity_job, jobs, chunksize=1))
+    else:
+        for document in shard_documents:
+            _validate_power_document_identity(document, run_root)
+
     _validate_power_attempt_topology(documents, run_root=run_root)
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:
