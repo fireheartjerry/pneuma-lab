@@ -1,0 +1,58 @@
+{
+  "buildx.build.provenance": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/vllm/vllm-openai?digest=sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90\u0026platform=linux%2Famd64",
+        "digest": {
+          "sha256": "7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "Dockerfile"
+      },
+      "parameters": {
+        "frontend": "dockerfile.v0",
+        "args": {
+          "build-arg:SOURCE_DATE_EPOCH": "1786030692"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "Dockerfile"
+          },
+          "request": {
+            "args": {
+              "build-arg:SOURCE_DATE_EPOCH": "1786030692"
+            }
+          }
+        },
+        "compatibilityVersion": 20
+      },
+      "environment": {
+        "dockerfileVersion": "1.24.0",
+        "platform": "linux/amd64"
+      }
+    }
+  },
+  "buildx.build.ref": "desktop-linux/desktop-linux/m7oec6vn8z4azltjo0zztjuwh",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:ab41f28aa473cac77ccb31e4ba7c136764131876aaf5ba9b87fb5c2473f3b421",
+    "size": 856
+  },
+  "containerimage.digest": "sha256:ab41f28aa473cac77ccb31e4ba7c136764131876aaf5ba9b87fb5c2473f3b421",
+  "image.name": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-official-production-benchmark-worker:source-253d8f644ef6"
+}
