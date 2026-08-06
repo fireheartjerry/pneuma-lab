@@ -19,6 +19,37 @@ from .workspace import (
 )
 
 
+def _reconcile_spend_reservation(
+    *, ledger, store, version, projected_microusd: int
+) -> None:
+    """Restore a reservation proven by the durable event chain after a crash."""
+
+    reservation_id = f"{version.version_id}-run"
+    entries = ledger.to_mapping()["entries"]
+    if any(item["reservation_id"] == reservation_id for item in entries):
+        return
+    reserved = next(
+        (
+            event
+            for event in store.snapshot().events
+            if event["phase"] == "reserved"
+            and event["payload"].get("reservation_id") == reservation_id
+        ),
+        None,
+    )
+    if reserved is None:
+        return
+    amount = reserved["payload"].get("projected_microusd")
+    if amount != projected_microusd:
+        raise RuntimeError("durable spend reservation differs from private config")
+    ledger.reserve(
+        reservation_id,
+        version_id=version.version_id,
+        amount_microusd=projected_microusd,
+        version_ceiling_microusd=version.version_ceiling_microusd,
+    )
+
+
 def _emit(value: object) -> None:
     print(json.dumps(value, sort_keys=True))
 
@@ -84,6 +115,12 @@ def _run(args: argparse.Namespace) -> int:
     root = Path(args.root)
     _, version, config, ledger, store = load_workspace(root)
     verify_workspace_bindings(root)
+    _reconcile_spend_reservation(
+        ledger=ledger,
+        store=store,
+        version=version,
+        projected_microusd=config["projected_microusd"],
+    )
     if config["mode"] == "simulate":
         execution = SimulationExecution(root)
         analysis = SimulationAnalysis(root)
@@ -116,8 +153,10 @@ def _run(args: argparse.Namespace) -> int:
         analysis=analysis,
         review=review,
     )
-    result = orchestrator.run()
-    save_spend(root, ledger)
+    try:
+        result = orchestrator.run()
+    finally:
+        save_spend(root, ledger)
     _emit(
         {
             "phase": result.phase,
