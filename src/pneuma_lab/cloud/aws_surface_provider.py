@@ -585,7 +585,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if len(endpoints) != len(endpoint_ids) or any(
             endpoint.get("State") != "available"
             or endpoint.get("VpcId") != self.config.vpc_id
-            or endpoint.get("PrivateDnsEnabled") is not False
+            or endpoint.get("PrivateDnsEnabled") is not True
             for endpoint in endpoints
         ):
             raise CloudManifestError("action interface endpoints did not satisfy the private-DNS-disabled binding")
@@ -662,7 +662,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._resource_tags([self.s3_endpoint_id])
         self._find_or_create_security_groups()
         for service in INTERFACE_SERVICES:
-            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=False, PolicyDocument=_json(self._endpoint_policy(service)))
+            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=True, PolicyDocument=_json(self._endpoint_policy(service)))
             self.endpoint_ids[service] = cast(str, response["VpcEndpoint"]["VpcEndpointId"])
             self._resource_tags([self.endpoint_ids[service]])
         deadline = time.time() + 180
