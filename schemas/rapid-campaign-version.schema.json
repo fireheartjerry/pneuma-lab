@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/rapid-campaign-version.schema.json",
+    "title": "Rapid Experiment Campaign Version",
+    "description": "Immutable scientific and operational bindings for one campaign version.",
+    "type": "object",
+    "x-pneuma-schema-kind": "campaign-version",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "version_id", "parent_version_id", "hypothesis_status", "action_id", "run_spec_sha256", "package_sha256", "authorization_sha256", "image_set_sha256", "power_sha256", "declared_criteria_sha256", "version_ceiling_microusd", "dependencies"],
+    "properties": {
+        "record_kind": {"const": "rapid_campaign_experiment_version"},
+        "schema_version": {"const": "0.1.0"},
+        "version_id": {"$ref": "#/$defs/id"},
+        "parent_version_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "hypothesis_status": {"enum": ["confirmatory", "exploratory", "operational_repair"]},
+        "action_id": {"$ref": "#/$defs/id"},
+        "run_spec_sha256": {"$ref": "#/$defs/sha"},
+        "package_sha256": {"$ref": "#/$defs/sha"},
+        "authorization_sha256": {"$ref": "#/$defs/sha"},
+        "image_set_sha256": {"$ref": "#/$defs/sha"},
+        "power_sha256": {"$ref": "#/$defs/sha"},
+        "declared_criteria_sha256": {"$ref": "#/$defs/sha"},
+        "version_ceiling_microusd": {"type": "integer", "minimum": 1},
+        "dependencies": {"type": "object", "minProperties": 1, "propertyNames": {"$ref": "#/$defs/id"}, "additionalProperties": {"$ref": "#/$defs/sha"}}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "id": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$"},
+        "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    }
+}

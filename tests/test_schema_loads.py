@@ -21,6 +21,7 @@ EXPECTED_FOUNDATION_COUNT = 6
 EXPECTED_GAUGE_COUNT = 1
 EXPECTED_RESAMPLING_COUNT = 16
 EXPECTED_CLOUD_COUNT = 48
+EXPECTED_RAPID_CAMPAIGN_COUNT = 2
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -44,6 +45,7 @@ def test_expected_counts() -> None:
     assert len(pls.GAUGE_SCHEMA_FILES) == EXPECTED_GAUGE_COUNT
     assert len(pls.RESAMPLING_SCHEMA_FILES) == EXPECTED_RESAMPLING_COUNT
     assert len(pls.CLOUD_SCHEMA_FILES) == EXPECTED_CLOUD_COUNT
+    assert len(pls.RAPID_CAMPAIGN_SCHEMA_FILES) == EXPECTED_RAPID_CAMPAIGN_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
         == EXPECTED_INPUT_COUNT
@@ -58,6 +60,7 @@ def test_expected_counts() -> None:
         + EXPECTED_GAUGE_COUNT
         + EXPECTED_RESAMPLING_COUNT
         + EXPECTED_CLOUD_COUNT
+        + EXPECTED_RAPID_CAMPAIGN_COUNT
     )
 
 

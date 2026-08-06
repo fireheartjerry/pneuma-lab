@@ -148,6 +148,11 @@ CLOUD_SCHEMA_FILES = (
     "cloud-ephemeral-dual-worker-qualification-receipt.schema.json",
 )
 
+RAPID_CAMPAIGN_SCHEMA_FILES = (
+    "rapid-campaign-manifest.schema.json",
+    "rapid-campaign-version.schema.json",
+)
+
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
@@ -161,6 +166,7 @@ ALL_SCHEMA_FILES = (
     + GAUGE_SCHEMA_FILES
     + RESAMPLING_SCHEMA_FILES
     + CLOUD_SCHEMA_FILES
+    + RAPID_CAMPAIGN_SCHEMA_FILES
 )
 
 
@@ -194,6 +200,7 @@ __all__ = [
     "GAUGE_SCHEMA_FILES",
     "RESAMPLING_SCHEMA_FILES",
     "CLOUD_SCHEMA_FILES",
+    "RAPID_CAMPAIGN_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

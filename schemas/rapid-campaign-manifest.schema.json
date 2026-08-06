@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/rapid-campaign-manifest.schema.json",
+    "title": "Rapid Experiment Campaign Manifest",
+    "description": "Closed authority and cost scope for one autonomous experiment campaign.",
+    "type": "object",
+    "x-pneuma-schema-kind": "campaign-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "campaign_id", "aws_account_id", "region", "ceiling_microusd", "root_version_id", "allowed_resource_classes", "tag_namespace", "impact_policy_version"],
+    "properties": {
+        "record_kind": {"const": "rapid_campaign_manifest"},
+        "schema_version": {"const": "0.1.0"},
+        "campaign_id": {"$ref": "#/$defs/id"},
+        "aws_account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "region": {"type": "string", "pattern": "^[a-z]{2}-[a-z]+-[0-9]$"},
+        "ceiling_microusd": {"type": "integer", "minimum": 1},
+        "root_version_id": {"$ref": "#/$defs/id"},
+        "allowed_resource_classes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "tag_namespace": {"$ref": "#/$defs/id"},
+        "impact_policy_version": {"const": "c0-c4-v1"}
+    },
+    "additionalProperties": false,
+    "$defs": {"id": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$"}}
+}
