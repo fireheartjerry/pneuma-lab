@@ -37,6 +37,11 @@ review, amend, and rerun experiment versions within these bounds:
 - reaching the ceiling stops new mutations and triggers teardown; and
 - credits may reduce the bill but never increase the USD 7,500 control limit.
 
+Each experiment version also retains its own immutable authorization ceiling.
+The effective launch limit is the minimum of the version ceiling and the
+campaign's unreserved remainder. In particular, prepared r2 remains bounded by
+its signed USD 5,100 maximum even though the campaign-wide ceiling is USD 7,500.
+
 AWS billing and budgets are delayed signals, not atomic circuit breakers. The
 software therefore enforces the limit using pessimistic pre-launch reservation,
 an append-only local spend ledger, provider observations, and immediate
