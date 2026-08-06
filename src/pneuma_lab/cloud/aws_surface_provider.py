@@ -207,6 +207,7 @@ def render_surface_user_data(
     config: AwsSurfaceConfig,
     *,
     endpoint_host_bindings: Mapping[str, str] | None = None,
+    ecr_api_endpoint: str | None = None,
 ) -> str:
     """Render bootstrap that cannot install packages or receive science inputs."""
 
@@ -231,6 +232,8 @@ def render_surface_user_data(
         host_lines = "\n# Action-owned endpoint bindings; no public DNS or general egress is permitted.\n"
         host_lines += "\n".join(f"{address}\t{' '.join(hosts)}" for address, hosts in sorted(grouped.items()))
         host_lines += "\n"
+    if ecr_api_endpoint is not None and not re.fullmatch(r"vpce-[A-Za-z0-9-]+\.api\.ecr\.us-east-1\.vpce\.amazonaws\.com", ecr_api_endpoint):
+        raise CloudManifestError("ECR API endpoint must be the exact action-owned PrivateLink DNS name")
     initial_status = {
         "record_kind": "cloud_production_surface_provider_status",
         "schema_version": "0.2.0",
@@ -272,7 +275,7 @@ command -v aws >/dev/null 2>&1
 command -v python3 >/dev/null 2>&1
 systemctl enable --now docker
 echo {encoded_refs!r} | base64 -d > "$ROOT/image-refs.json"
-aws ecr get-login-password --region {config.region!r} | docker login --username AWS --password-stdin "$REGISTRY"
+aws ecr get-login-password --region {config.region!r}{f" --endpoint-url https://{ecr_api_endpoint}" if ecr_api_endpoint is not None else ""} | docker login --username AWS --password-stdin "$REGISTRY"
 for role in controller model-server benchmark-worker; do
   image=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$ROOT/image-refs.json" "$role")
   docker pull "$image"
@@ -389,6 +392,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self.endpoint_ids: dict[str, str] = {}
         self.endpoint_network_interface_ids: list[str] = []
         self.endpoint_host_bindings: dict[str, str] = {}
+        self.ecr_api_endpoint: str | None = None
         self.s3_endpoint_id: str | None = None
         self.instance_volume_ids: list[str] = []
         self.instance_network_interface_ids: list[str] = []
@@ -585,7 +589,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if len(endpoints) != len(endpoint_ids) or any(
             endpoint.get("State") != "available"
             or endpoint.get("VpcId") != self.config.vpc_id
-            or endpoint.get("PrivateDnsEnabled") is not True
+            or endpoint.get("PrivateDnsEnabled") is not False
             for endpoint in endpoints
         ):
             raise CloudManifestError("action interface endpoints did not satisfy the private-DNS-disabled binding")
@@ -622,6 +626,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         if len(by_id) != len(network_interface_ids):
             raise CloudManifestError("action endpoint ENI readback is incomplete")
         ips: dict[str, str] = {}
+        ecr_api_endpoint: str | None = None
         for service, ids in endpoint_service_interfaces.items():
             item = by_id.get(ids[0])
             if not isinstance(item, Mapping) or item.get("VpcId") != self.config.vpc_id or item.get("SubnetId") != self.subnet_id:
@@ -636,6 +641,18 @@ class AwsSurfaceProvider(ProductionJobProvider):
             if parsed.version != 4 or not parsed.is_private or parsed.is_loopback or parsed.is_link_local or item.get("Association"):
                 raise CloudManifestError("action endpoint ENI has a public, non-IPv4, or associated address")
             ips[service] = address
+            if service == "ecr.api":
+                candidates = [
+                    entry.get("DnsName")
+                    for entry in next(endpoint for endpoint in endpoints if str(endpoint.get("ServiceName", "")).endswith("." + service)).get("DnsEntries", [])
+                    if isinstance(entry, Mapping)
+                    and isinstance(entry.get("DnsName"), str)
+                    and not str(entry["DnsName"]).split(".", 1)[0].endswith("-" + self.config.availability_zone)
+                    and re.fullmatch(r"vpce-[A-Za-z0-9-]+\.api\.ecr\.us-east-1\.vpce\.amazonaws\.com", str(entry["DnsName"]))
+                ]
+                if len(candidates) != 1:
+                    raise CloudManifestError("action ECR API endpoint must expose exactly one endpoint-specific DNS name")
+                ecr_api_endpoint = str(candidates[0])
         registry = next(iter(self.config.image_refs.values())).split("/", 1)[0]
         hosts = {
             "ecr.api": ("api.ecr.us-east-1.amazonaws.com", "ecr.us-east-1.api.aws"),
@@ -646,6 +663,9 @@ class AwsSurfaceProvider(ProductionJobProvider):
         }
         self.endpoint_network_interface_ids = network_interface_ids
         self.endpoint_host_bindings = {host: ips[service] for service, names in hosts.items() for host in names}
+        self.ecr_api_endpoint = ecr_api_endpoint
+        if self.ecr_api_endpoint is None:
+            raise CloudManifestError("action ECR API endpoint-specific DNS binding is missing")
 
     def _create_network(self) -> None:
         self._verify_vpc()
@@ -662,7 +682,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._resource_tags([self.s3_endpoint_id])
         self._find_or_create_security_groups()
         for service in INTERFACE_SERVICES:
-            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=True, PolicyDocument=_json(self._endpoint_policy(service)))
+            response = self._call(f"create_interface_endpoint.{service}", self.ec2.create_vpc_endpoint, VpcEndpointType="Interface", VpcId=self.config.vpc_id, ServiceName=f"com.amazonaws.{REGION}.{service}", SubnetIds=[self.subnet_id], SecurityGroupIds=[self.endpoint_security_group_id], PrivateDnsEnabled=False, PolicyDocument=_json(self._endpoint_policy(service)))
             self.endpoint_ids[service] = cast(str, response["VpcEndpoint"]["VpcEndpointId"])
             self._resource_tags([self.endpoint_ids[service]])
         deadline = time.time() + 180
@@ -899,7 +919,7 @@ class AwsSurfaceProvider(ProductionJobProvider):
         self._create_ssm_document()
         deadline = time.time() + MAX_DURATION_SECONDS
         self._start_watchdog(deadline_epoch=deadline)
-        user_data = render_surface_user_data(self.config, endpoint_host_bindings=self.endpoint_host_bindings)
+        user_data = render_surface_user_data(self.config, endpoint_host_bindings=self.endpoint_host_bindings, ecr_api_endpoint=self.ecr_api_endpoint)
         tags = self._tags()
         if self.profile_arn is None:
             raise CloudManifestError("verified IAM instance profile ARN is missing before launch")

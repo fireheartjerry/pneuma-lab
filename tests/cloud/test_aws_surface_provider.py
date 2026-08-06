@@ -158,16 +158,21 @@ def test_surface_bootstrap_binds_only_verified_private_endpoint_addresses() -> N
             "api.ecr.us-east-1.amazonaws.com": "10.42.2.10",
             "123456789012.dkr.ecr.us-east-1.amazonaws.com": "10.42.2.11",
         },
+        ecr_api_endpoint="vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com",
     )
 
     assert "10.42.2.10\tapi.ecr.us-east-1.amazonaws.com" in user_data
     assert "10.42.2.11\t123456789012.dkr.ecr.us-east-1.amazonaws.com" in user_data
+    assert "--endpoint-url https://vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com" in user_data
     assert "8.8.8.8" not in user_data
 
     import pytest
 
     with pytest.raises(Exception):
         aws_surface_provider.render_surface_user_data(config, endpoint_host_bindings={"api.ecr.us-east-1.amazonaws.com": "8.8.8.8"})
+
+    with pytest.raises(Exception):
+        aws_surface_provider.render_surface_user_data(config, ecr_api_endpoint="api.ecr.us-east-1.amazonaws.com")
 
 
 def test_action_id_is_fail_closed_and_immutable() -> None:
