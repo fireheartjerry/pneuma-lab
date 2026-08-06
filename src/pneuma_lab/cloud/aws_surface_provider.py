@@ -662,7 +662,14 @@ class AwsSurfaceProvider(ProductionJobProvider):
             "ec2messages": ("ec2messages.us-east-1.amazonaws.com",),
         }
         self.endpoint_network_interface_ids = network_interface_ids
-        self.endpoint_host_bindings = {host: ips[service] for service, names in hosts.items() for host in names}
+        endpoint_host_bindings = {host: ips[service] for service, names in hosts.items() for host in names}
+        # With PrivateDnsEnabled=false, the endpoint-specific ECR API name is
+        # the only valid login target. Bind that exact AWS-returned name to
+        # the read-back action ENI so bootstrap does not depend on resolver
+        # behavior outside the isolated action subnet.
+        if ecr_api_endpoint is not None:
+            endpoint_host_bindings[ecr_api_endpoint] = ips["ecr.api"]
+        self.endpoint_host_bindings = endpoint_host_bindings
         self.ecr_api_endpoint = ecr_api_endpoint
         if self.ecr_api_endpoint is None:
             raise CloudManifestError("action ECR API endpoint-specific DNS binding is missing")

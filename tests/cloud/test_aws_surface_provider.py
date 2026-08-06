@@ -157,11 +157,13 @@ def test_surface_bootstrap_binds_only_verified_private_endpoint_addresses() -> N
         endpoint_host_bindings={
             "api.ecr.us-east-1.amazonaws.com": "10.42.2.10",
             "123456789012.dkr.ecr.us-east-1.amazonaws.com": "10.42.2.11",
+            "vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com": "10.42.2.10",
         },
         ecr_api_endpoint="vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com",
     )
 
     assert "10.42.2.10\tapi.ecr.us-east-1.amazonaws.com" in user_data
+    assert "vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com" in user_data
     assert "10.42.2.11\t123456789012.dkr.ecr.us-east-1.amazonaws.com" in user_data
     assert "--endpoint-url https://vpce-0123456789abcdef0.api.ecr.us-east-1.vpce.amazonaws.com" in user_data
     assert "8.8.8.8" not in user_data
