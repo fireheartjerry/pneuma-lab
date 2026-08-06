@@ -167,6 +167,24 @@ def _oci_binding(tag_ref: str) -> dict[str, object]:
     }
 
 
+def _published_tag_exists(tag_ref: str) -> bool:
+    """Return whether an immutable ECR tag is already available for receipt work.
+
+    A local timeout can occur after BuildKit has pushed a complete OCI index but
+    before SBOM and KMS receipt generation.  Rebuilding that same immutable tag
+    cannot succeed and is unnecessary; the existing OCI/provenance binding is
+    subsequently re-verified by ``_oci_binding``.
+    """
+    result = subprocess.run(
+        ["docker", "buildx", "imagetools", "inspect", tag_ref],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def _kms_approve(payload: Mapping[str, object], *, key_id: str, output: Path) -> dict[str, object]:
     payload_raw = _canonical(payload)
     payload_path = output / f"{payload['role']}.digest-approval.payload.json"
@@ -193,7 +211,10 @@ def _build_role(role: str, *, account: str, commit: str, source_date_epoch: int,
     tag_ref = f"{registry}/{repository}:source-{commit[:12]}"
     metadata_path = output / "images" / f"{role}.build-metadata.json"
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    _run(["docker", "buildx", "build", "--platform", "linux/amd64", "--push", "--provenance=mode=max", "--sbom=false", "--build-arg", f"SOURCE_DATE_EPOCH={source_date_epoch}", "--tag", tag_ref, "--metadata-file", str(metadata_path), "--file", str(context / DOCKERFILES[role].relative_to(ROOT)), str(context)])
+    if not _published_tag_exists(tag_ref):
+        _run(["docker", "buildx", "build", "--platform", "linux/amd64", "--push", "--provenance=mode=max", "--sbom=false", "--build-arg", f"SOURCE_DATE_EPOCH={source_date_epoch}", "--tag", tag_ref, "--metadata-file", str(metadata_path), "--file", str(context / DOCKERFILES[role].relative_to(ROOT)), str(context)])
+    elif not metadata_path.exists():
+        metadata_path.write_bytes(_canonical({"resumed_existing_immutable_tag": tag_ref}))
     oci = _oci_binding(tag_ref)
     image_ref = f"{registry}/{repository}@{oci['child_digest']}"
     sbom_path = output / "images" / f"{role}.spdx.json"

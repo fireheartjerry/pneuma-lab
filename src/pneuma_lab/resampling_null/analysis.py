@@ -784,7 +784,7 @@ def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef,
         raise ValueError("roster_ref must resolve to JSON") from exc
     if (not isinstance(roster, dict) or set(roster) != {"record_kind", "schema_version", "roster_kind", "supported_tiers", "tasks"}
             or roster.get("record_kind") != "resampling_roster_v1" or roster.get("schema_version") != "1"
-            or roster.get("roster_kind") not in {"synthetic_fixture", "eligible_confirmation"}
+            or roster.get("roster_kind") not in {"synthetic_fixture", "eligible_confirmation", "prospective_frozen"}
             or roster.get("supported_tiers") not in ([120], [120, 160]) or not isinstance(roster.get("tasks"), list)):
         raise ValueError("roster_ref does not resolve to a registered roster")
     expected: dict[str, tuple[str, str, str, tuple[tuple[str, str], ...]]] = {}

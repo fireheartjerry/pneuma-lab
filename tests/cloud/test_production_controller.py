@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import stat
 from pathlib import Path
 
@@ -40,7 +41,8 @@ def test_production_controller_is_restartable_and_preserves_submission_on_observ
     with pytest.raises(CloudManifestError, match="immutable first submission"):
         restarted.submit_once(parent_job_id="parent-2", child_job_ids=("child-0", "child-1"))
     assert restarted.teardown(success=True).phase == "teardown_complete"
-    assert stat.S_IMODE(state_path.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(state_path.stat().st_mode) == 0o600
 
 
 class _Provider:

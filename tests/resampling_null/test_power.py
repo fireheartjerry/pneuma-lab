@@ -208,6 +208,19 @@ def test_screen_projection_charges_the_entire_production_workload() -> None:
     ) == 583_200
 
 
+def test_screen_projection_does_not_double_discount_parallel_probe_time() -> None:
+    from pneuma_lab.resampling_null.power import _projected_screen_wall_seconds
+
+    assert _projected_screen_wall_seconds(
+        elapsed_seconds=2.0,
+        measured_datasets_per_cell=200,
+        cell_count=2916,
+        production_datasets_per_cell=20_000,
+        shard_count=64,
+        execution_workers=16,
+    ) == 583_200
+
+
 def test_production_timing_probe_replays_every_frozen_cell(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

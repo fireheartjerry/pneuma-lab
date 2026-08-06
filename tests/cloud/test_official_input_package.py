@@ -51,7 +51,9 @@ def _surface(input_lock_sha256: str, source_commit: str) -> dict[str, object]:
 def test_real_candidate_inputs_are_digest_bound_and_non_authorizing(tmp_path: Path) -> None:
     inputs = build_inputs(tmp_path, frozen_timestamp="2026-08-04T12:00:00Z")
     registry = json.loads(inputs["task_manifest"].read_text(encoding="utf-8"))
-    assert len(registry["tasks"]) == 193
+    assert len(registry["tasks"]) == 240
+    assert sum(task["benchmark"] == "SWE" for task in registry["tasks"]) == 120
+    assert sum(task["benchmark"] == "TAU" for task in registry["tasks"]) == 120
     roster = json.loads(inputs["roster"].read_text(encoding="utf-8"))
     assert validate_official_roster_candidate(roster)["ceremony_status"] == "not_performed"
     assignment = json.loads(inputs["assignment"].read_text(encoding="utf-8"))

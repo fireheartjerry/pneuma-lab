@@ -68,3 +68,32 @@ def test_cli_exposes_roster_finalization_arms_without_running_them() -> None:
     assert args.completed_roster_bound is True
     assert args.tier == 120
     assert args.tier_receipt == "both-tier-receipt.json"
+
+
+def test_cli_accepts_structural_c160_no_go_instead_of_fabricated_validation() -> None:
+    from pneuma_lab.resampling_null.cli import _parser
+
+    args = _parser().parse_args(
+        [
+            "--run-root",
+            "/tmp/pneuma-tier-test",
+            "power",
+            "combine-tiers",
+            "--authority",
+            "authority.json",
+            "--grid-ref",
+            "grid.json",
+            "--screen-topology-ref",
+            "topology.json",
+            "--tier",
+            "120",
+            "--c120-validation",
+            "c120-validation.json",
+            "--c160-feasibility-no-go",
+            "c160-feasibility.json",
+            "--out",
+            "tier-receipt.json",
+        ]
+    )
+    assert args.c160_validation is None
+    assert args.c160_feasibility_no_go == "c160-feasibility.json"

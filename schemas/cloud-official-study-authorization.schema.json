@@ -8,7 +8,7 @@
     "x-pneuma-version": "0.1.0",
     "required": [
         "record_kind", "schema_version", "status", "scope", "action_id", "study_id",
-        "run_spec_sha256", "input_lock_sha256", "task_manifest_sha256", "max_usd",
+        "run_spec_subject_sha256", "input_lock_sha256", "task_manifest_sha256", "max_usd",
         "code_commit", "image_bindings", "power_report_sha256", "analysis_graph_sha256",
         "selected_tier", "max_attempts", "spot_only", "teardown_protected", "ledger_ref",
         "ledger_row_id", "ledger_row_sha256", "human_authorization"
@@ -20,7 +20,10 @@
         "scope": {"const": "official_p0_step4b"},
         "action_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,79}$"},
         "study_id": {"type": "string", "minLength": 1},
-        "run_spec_sha256": {"$ref": "#/$defs/sha256"},
+        "run_spec_subject_sha256": {
+            "$ref": "#/$defs/sha256",
+            "description": "SHA-256 of the complete run specification with only official_authorization_ref and official_key_registry_ref replaced by null, preventing a self-digest cycle while binding every scientific and operational field."
+        },
         "input_lock_sha256": {"$ref": "#/$defs/sha256"},
         "task_manifest_sha256": {"$ref": "#/$defs/sha256"},
         "code_commit": {"$ref": "#/$defs/commit"},

@@ -6,7 +6,7 @@
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
     "x-pneuma-version": "0.2.0",
-    "required": ["record_kind", "schema_version", "provider", "region", "production_deployment", "bounded_surface_deployment", "forbidden_actions", "teardown", "image_registry"],
+    "required": ["record_kind", "schema_version", "provider", "region", "production_deployment", "bounded_surface_deployment", "forbidden_actions_scope", "forbidden_actions", "teardown", "image_registry"],
     "properties": {
         "record_kind": {"const": "cloud_production_provider_binding"},
         "schema_version": {"const": "0.2.0"},
@@ -14,6 +14,7 @@
         "region": {"const": "us-east-1"},
         "production_deployment": {"$ref": "#/$defs/production"},
         "bounded_surface_deployment": {"$ref": "#/$defs/surface"},
+        "forbidden_actions_scope": {"const": "bounded_surface_deployment_only"},
         "forbidden_actions": {"type": "array", "minItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "teardown": {
             "type": "object",
@@ -41,14 +42,17 @@
     "$defs": {
         "production": {
             "type": "object",
-            "required": ["deployment_id", "instance_type", "worker_count", "spot_only", "max_attempts", "official_topology"],
+            "required": ["deployment_id", "instance_type", "worker_count", "spot_only", "max_attempts", "official_topology", "allowed_actions"],
             "properties": {
                 "deployment_id": {"const": "aws-batch-two-independent-g6e-spot-workers-v1"},
                 "instance_type": {"const": "g6e.2xlarge"},
                 "worker_count": {"const": 2},
                 "spot_only": {"const": true},
                 "max_attempts": {"const": 1},
-                "official_topology": {"const": "two-independent-8-vcpu-one-l40s-workers"}
+                "official_topology": {"const": "two-independent-8-vcpu-one-l40s-workers"},
+                "allowed_actions": {
+                    "const": ["official_model", "approved_benchmark", "canonical_p0_grid", "task_block_execution", "sealed_output_publication"]
+                }
             },
             "additionalProperties": false
         },

@@ -22,6 +22,29 @@ def require_production_execution_surface(record: Mapping[str, Any]) -> dict[str,
     entrypoints = [tuple(item["entrypoint"]) for item in roles]
     if len(set(entrypoints)) != 3:
         raise CloudManifestError("production roles must not share one entrypoint")
+    if surface.get("schema_version") == "0.2.0":
+        if (
+            surface.get("surface_class")
+            != "provenance_verified_official_batch_plan"
+            or not isinstance(surface.get("launch_plan_sha256"), str)
+        ):
+            raise CloudManifestError("official Batch surface lacks its launch-plan binding")
+        for role in roles:
+            entrypoint = list(role["entrypoint"])
+            if (
+                entrypoint[:3] != ["python3", "-m", _RUNTIME_MODULE]
+                or entrypoint[3:] != [role["role"]]
+            ):
+                raise CloudManifestError(
+                    "production role must use the sealed role runtime entrypoint"
+                )
+            if not isinstance(role.get("sbom_sha256"), str) or not str(
+                role.get("provenance_descriptor_digest", "")
+            ).startswith("sha256:"):
+                raise CloudManifestError(
+                    f"production role {role['role']} lacks verified SBOM/provenance"
+                )
+        return surface
     for role in roles:
         entrypoint = list(role["entrypoint"])
         if entrypoint[:3] != ["python3", "-m", _RUNTIME_MODULE] or entrypoint[3:] != [role["role"]]:

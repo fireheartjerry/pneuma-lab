@@ -374,7 +374,9 @@ def _parser() -> argparse.ArgumentParser:
             if name == "validate": p.add_argument("--selection", required=True)
         elif name == "combine-tiers":
             p.add_argument("--c120-validation", required=True)
-            p.add_argument("--c160-validation", required=True)
+            c160 = p.add_mutually_exclusive_group(required=True)
+            c160.add_argument("--c160-validation")
+            c160.add_argument("--c160-feasibility-no-go")
         else:
             p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--tier-receipt"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-roster-bound", action="store_true"); p.add_argument("--completed-roster-bound-fallback", action="store_true"); p.add_argument("--completed-implementation-verification", action="store_true"); p.add_argument("--completed-implementation-verification-fallback", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--roster-bound-no-go", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "power_or_type_i_gate_failed", "synthetic_validation_gate_failed"))
     schedule = top.add_parser("schedule").add_subparsers(dest="schedule_command", required=True)
@@ -970,8 +972,17 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, o
             config = _config(args, root, tier_override=120)
             return seal_roster_tier_decision_receipt(
                 _ref(root, args.c120_validation, "power_report"),
-                _ref(root, args.c160_validation, "power_report"),
+                (
+                    _ref(root, args.c160_validation, "power_report")
+                    if args.c160_validation
+                    else None
+                ),
                 config,
+                c160_feasibility_ref=(
+                    _ref(root, args.c160_feasibility_no_go, "power_tier_feasibility")
+                    if args.c160_feasibility_no_go
+                    else None
+                ),
                 run_root=root,
                 out=_out(root, args.out),
             )

@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
 import stat
 from typing import Any, Protocol, cast
@@ -353,7 +354,10 @@ class ProductionStateStore:
     def _read_verified(self) -> dict[str, Any]:
         if self.path is None or self.path.is_symlink() or not self.path.is_file():
             raise CloudManifestError("production controller state must be one regular file")
-        if stat.S_IMODE(self.path.stat().st_mode) & 0o077:
+        # Windows does not expose POSIX group/other mode bits through stat;
+        # ACL enforcement is handled by the local account. Keep the strict
+        # 0600 invariant on POSIX where the bits are meaningful.
+        if os.name != "nt" and stat.S_IMODE(self.path.stat().st_mode) & 0o077:
             raise CloudManifestError("production controller state must be mode 600")
         try:
             raw = self.path.read_bytes()

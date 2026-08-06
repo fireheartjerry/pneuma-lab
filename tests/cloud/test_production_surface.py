@@ -41,6 +41,22 @@ def test_exact_three_role_surface_passes() -> None:
     assert len(require_production_execution_surface(surface())["roles"]) == 3
 
 
+def test_provenance_bound_official_batch_plan_surface_passes() -> None:
+    row = surface()
+    row["schema_version"] = "0.2.0"
+    row["surface_class"] = "provenance_verified_official_batch_plan"
+    row["launch_plan_sha256"] = "9" * 64
+    for role in row["roles"]:
+        role.pop("e2e_receipt_sha256")
+        role.pop("gates")
+        role["sbom_sha256"] = "8" * 64
+        role["provenance_descriptor_digest"] = "sha256:" + "7" * 64
+    assert (
+        require_production_execution_surface(row)["surface_class"]
+        == "provenance_verified_official_batch_plan"
+    )
+
+
 def test_duplicate_role_or_entrypoint_fails() -> None:
     for field in ("role", "entrypoint"):
         row = copy.deepcopy(surface())

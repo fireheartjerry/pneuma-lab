@@ -310,6 +310,10 @@
                         "measured_wall_seconds": {
                             "type": "number",
                             "exclusiveMinimum": 0
+                        },
+                        "execution_workers": {
+                            "type": "integer",
+                            "minimum": 1
                         }
                     },
                     "additionalProperties": false

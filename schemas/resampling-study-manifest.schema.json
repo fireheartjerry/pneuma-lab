@@ -65,6 +65,12 @@
                         { "type": "null" }
                     ]
                 },
+                "prelaunch_protocol_amendment_ref": {
+                    "oneOf": [
+                        { "$ref": "#/$defs/artifact_ref" },
+                        { "type": "null" }
+                    ]
+                },
                 "assignment_program_ref": { "$ref": "#/$defs/artifact_ref" },
                 "provider_lane_plan_ref": { "$ref": "#/$defs/artifact_ref" },
                 "branch_program_registry_ref": { "$ref": "#/$defs/artifact_ref" },
@@ -82,7 +88,10 @@
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
                 "commitment_scheme": {
-                    "const": "resampling-null-key-ceremony-v1"
+                    "enum": [
+                        "resampling-null-key-ceremony-v1",
+                        "official-study-deterministic-commitments-v1"
+                    ]
                 },
                 "roster_local_nonce_commitment_sha256": {
                     "$ref": "#/$defs/sha256"

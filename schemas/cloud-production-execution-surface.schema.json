@@ -9,26 +9,33 @@
     "required": ["record_kind", "schema_version", "input_lock_sha256", "source_commit", "roles"],
     "properties": {
         "record_kind": {"const": "cloud_production_execution_surface"},
-        "schema_version": {"const": "0.1.0"},
+        "schema_version": {"enum": ["0.1.0", "0.2.0"]},
         "input_lock_sha256": {"$ref": "#/$defs/digest"},
         "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "provider_binding_sha256": {"$ref": "#/$defs/digest"},
         "e2e_class": {"const": "non_scientific_bounded_surface"},
         "deployment_id": {"type": "string", "minLength": 1},
         "teardown_ref": {"$ref": "#/$defs/digest"},
+        "surface_class": {"const": "provenance_verified_official_batch_plan"},
+        "launch_plan_sha256": {"$ref": "#/$defs/digest"},
         "roles": {
             "type": "array",
             "minItems": 3,
             "maxItems": 3,
             "items": {
                 "type": "object",
-                "required": ["role", "image_digest", "entrypoint", "source_sha256", "e2e_receipt_sha256", "gates"],
+                "required": ["role", "image_digest", "entrypoint", "source_sha256"],
                 "properties": {
                     "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
                     "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
                     "entrypoint": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
                     "source_sha256": {"$ref": "#/$defs/digest"},
                     "e2e_receipt_sha256": {"$ref": "#/$defs/digest"},
+                    "sbom_sha256": {"$ref": "#/$defs/digest"},
+                    "provenance_descriptor_digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
                     "gates": {
                         "type": "object",
                         "required": ["clean_start", "expected_terminal_state", "failure_receipt", "no_class_a_secret", "no_controller_credentials", "imds_blocked", "docker_socket_absent"],

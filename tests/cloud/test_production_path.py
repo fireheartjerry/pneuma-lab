@@ -13,7 +13,11 @@ from pneuma_lab.cloud.production_evidence import (
     validate_worker_evidence,
     write_worker_result,
 )
-from pneuma_lab.cloud.production_run import ProductionRunSpec, canonical_bytes
+from pneuma_lab.cloud.production_run import (
+    ProductionRunSpec,
+    canonical_bytes,
+    official_authorization_subject_digest,
+)
 
 
 def _binding(root: Path, relative: str, value: object, role: str) -> dict[str, object]:
@@ -82,12 +86,24 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
         ],
     }
     bindings = {
-        "execution_surface_ref": _binding(root, "inputs/execution.json", {"surface": "v1"}, "execution_surface"),
-        "input_lock_ref": _binding(root, "inputs/input-lock.json", {"lock": "v1"}, "input_lock"),
-        "task_manifest_ref": _binding(root, "inputs/task-registry.json", task_manifest, "task_manifest"),
-        "roster_ref": _binding(root, "inputs/roster.json", {"roster": "sealed"}, "roster"),
-        "assignment_ref": _binding(root, "inputs/assignment.json", {"assignment": "sealed"}, "assignment"),
-        "analysis_graph_ref": _binding(root, "inputs/analysis.json", {"graph": "sealed"}, "analysis_graph"),
+        "execution_surface_ref": _binding(
+            root, "inputs/execution.json", {"surface": "v1"}, "execution_surface"
+        ),
+        "input_lock_ref": _binding(
+            root, "inputs/input-lock.json", {"lock": "v1"}, "input_lock"
+        ),
+        "task_manifest_ref": _binding(
+            root, "inputs/task-registry.json", task_manifest, "task_manifest"
+        ),
+        "roster_ref": _binding(
+            root, "inputs/roster.json", {"roster": "sealed"}, "roster"
+        ),
+        "assignment_ref": _binding(
+            root, "inputs/assignment.json", {"assignment": "sealed"}, "assignment"
+        ),
+        "analysis_graph_ref": _binding(
+            root, "inputs/analysis.json", {"graph": "sealed"}, "analysis_graph"
+        ),
     }
     task_digest = bindings["task_manifest_ref"]["sha256"]
     task_size = bindings["task_manifest_ref"]["byte_count"]
@@ -151,7 +167,12 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
             "gpus_per_worker": 1,
             "allocation_contract_id": "canonical-round-robin-two-worker-v1",
         },
-        "budget": {"max_usd": 100.0, "max_duration_seconds": 3600, "max_attempts": 1, "spot_only": True},
+        "budget": {
+            "max_usd": 100.0,
+            "max_duration_seconds": 3600,
+            "max_attempts": 1,
+            "spot_only": True,
+        },
         "output": {
             "root": "outputs/official-study-test-001",
             "worker_evidence_template": "outputs/official-study-test-001/{worker_id}.evidence.json",
@@ -177,12 +198,16 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
     return ProductionRunSpec.from_mapping(value)
 
 
-def test_local_mock_uses_the_production_control_flow_and_is_not_science(tmp_path: Path) -> None:
+def test_local_mock_uses_the_production_control_flow_and_is_not_science(
+    tmp_path: Path,
+) -> None:
     spec = _spec(tmp_path)
     result = ProductionWorkerExecutor(spec, run_root=tmp_path).execute("worker-0")
     assert result.evidence["evidence_class"] == "local_mock_non_scientific"
     assert result.evidence["state"] == "SUCCEEDED"
-    validate_worker_evidence(result.evidence, spec, run_root=tmp_path, raw_artifact=result.raw_artifact)
+    validate_worker_evidence(
+        result.evidence, spec, run_root=tmp_path, raw_artifact=result.raw_artifact
+    )
     evidence_path = tmp_path / "outputs/worker-0.evidence.json"
     raw_path = tmp_path / "outputs/worker-0.raw.json"
     evidence = write_worker_result(
@@ -193,7 +218,10 @@ def test_local_mock_uses_the_production_control_flow_and_is_not_science(tmp_path
     )
     validate_production_worker_evidence(evidence)
     validate_worker_evidence(evidence, spec, run_root=tmp_path)
-    assert json.loads(raw_path.read_text(encoding="utf-8"))["record_kind"] == "cloud_production_raw_worker_output"
+    assert (
+        json.loads(raw_path.read_text(encoding="utf-8"))["record_kind"]
+        == "cloud_production_raw_worker_output"
+    )
 
 
 def test_official_semantics_reject_fixture_adapter(tmp_path: Path) -> None:
@@ -236,6 +264,30 @@ def test_official_semantics_reject_fixture_adapter(tmp_path: Path) -> None:
         ProductionRunSpec.from_mapping(value)
 
 
+def test_official_authorization_subject_breaks_only_signature_reference_cycle(
+    tmp_path: Path,
+) -> None:
+    value = dict(_spec(tmp_path).value)
+    first = official_authorization_subject_digest(value)
+    value["official_authorization_ref"] = {
+        "role": "official_authorization",
+        "relative_path": "authority/first.json",
+        "sha256": "5" * 64,
+        "byte_count": 1,
+        "media_type": "application/json",
+    }
+    value["official_key_registry_ref"] = {
+        "role": "key_registry",
+        "relative_path": "authority/keys.json",
+        "sha256": "6" * 64,
+        "byte_count": 1,
+        "media_type": "application/json",
+    }
+    assert official_authorization_subject_digest(value) == first
+    value["budget"] = {**value["budget"], "max_usd": 101.0}
+    assert official_authorization_subject_digest(value) != first
+
+
 def test_execution_surface_must_match_the_run_code_and_images(tmp_path: Path) -> None:
     base = _spec(tmp_path)
     surface = {
@@ -247,7 +299,12 @@ def test_execution_surface_must_match_the_run_code_and_images(tmp_path: Path) ->
             {
                 "role": "controller",
                 "image_digest": base.image_bindings["controller"],
-                "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", "controller"],
+                "entrypoint": [
+                    "python3",
+                    "-m",
+                    "pneuma_lab.cloud.production_runtime",
+                    "controller",
+                ],
                 "source_sha256": "4" * 64,
                 "e2e_receipt_sha256": "5" * 64,
                 "gates": {
@@ -264,7 +321,12 @@ def test_execution_surface_must_match_the_run_code_and_images(tmp_path: Path) ->
                 {
                     "role": role,
                     "image_digest": base.image_bindings[role],
-                    "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", role],
+                    "entrypoint": [
+                        "python3",
+                        "-m",
+                        "pneuma_lab.cloud.production_runtime",
+                        role,
+                    ],
                     "source_sha256": "4" * 64,
                     "e2e_receipt_sha256": "5" * 64,
                     "gates": {
@@ -281,11 +343,16 @@ def test_execution_surface_must_match_the_run_code_and_images(tmp_path: Path) ->
             ],
         ],
     }
-    surface_ref = _binding(tmp_path, "inputs/surface.json", surface, "execution_surface")
+    surface_ref = _binding(
+        tmp_path, "inputs/surface.json", surface, "execution_surface"
+    )
     value = dict(base.value)
     value["execution_surface_ref"] = surface_ref
     bound = ProductionRunSpec.from_mapping(value)
-    assert bound.verify_official_execution_surface(run_root=tmp_path)["source_commit"] == "a" * 40
+    assert (
+        bound.verify_official_execution_surface(run_root=tmp_path)["source_commit"]
+        == "a" * 40
+    )
 
     changed = dict(value)
     changed["image_bindings"] = [

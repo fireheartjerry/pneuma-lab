@@ -7,6 +7,7 @@ turns manifest-owned bytes into typed authority/configuration values.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
@@ -159,6 +160,16 @@ def _gauss_hermite_nodes_weights(order: int) -> tuple[np.ndarray, np.ndarray]:
     """
     nodes, weights = _gauss_hermite_base_rule(order)
     return nodes.view(), weights.view()
+
+
+@lru_cache(maxsize=None)
+def _gauss_legendre_base_rule(order: int) -> tuple[np.ndarray, np.ndarray]:
+    """Cache the frozen Legendre rule used by every Gaussian critical value."""
+
+    nodes, weights = np.polynomial.legendre.leggauss(order)
+    nodes.setflags(write=False)
+    weights.setflags(write=False)
+    return nodes, weights
 
 
 def bernoulli_pattern_probabilities(
@@ -332,23 +343,43 @@ def _batch_group_manifest_and_patterns(
 ) -> tuple[tuple[tuple[str, GroupLabel | None], ...], np.ndarray]:
     """Preserve each roster label's count tensor for Task-7 leave-one gates."""
     manifest: list[tuple[str, GroupLabel | None]] = [("SWE", None), ("TAU", None)]
-    labels_by_benchmark: tuple[tuple[GroupLabel, ...], tuple[GroupLabel, ...]] = ((), ())
-    if joint_group_labels is not None:
-        labels_by_benchmark = tuple(
-            tuple(sorted({label for cell in labels for label in cell}, key=lambda label: (label.kind.value, label.value)))
-            for labels in joint_group_labels
-        )  # type: ignore[assignment]
-        manifest.extend((benchmark, label) for benchmark, labels in zip(("SWE", "TAU"), labels_by_benchmark, strict=True) for label in labels)
-    tensor: list[list[tuple[int, ...]]] = []
-    for swe, tau in rows:
-        entries: list[tuple[int, ...]] = [swe.pattern_counts, tau.pattern_counts]
-        if joint_group_labels is not None:
-            for counts, labels_by_cell, labels in zip((swe, tau), joint_group_labels, labels_by_benchmark, strict=True):
-                if len(counts.joint_group_pattern_counts) != len(labels_by_cell):
-                    raise RecordValidationError("joint group labels do not match simulated group cells")
-                entries.extend(tuple(sum(pattern[index] for pattern, cell in zip(counts.joint_group_pattern_counts, labels_by_cell, strict=True) if label in cell) for index in range(16)) for label in labels)
-        tensor.append(entries)
-    return tuple(manifest), np.asarray(tensor, dtype=np.int64)
+    overall = np.asarray(
+        [[swe.pattern_counts, tau.pattern_counts] for swe, tau in rows],
+        dtype=np.int64,
+    )
+    if joint_group_labels is None:
+        return tuple(manifest), overall
+
+    grouped: list[np.ndarray] = [overall]
+    benchmark_rows = (
+        tuple(swe for swe, _tau in rows),
+        tuple(tau for _swe, tau in rows),
+    )
+    for benchmark, counts_rows, labels_by_cell in zip(
+        ("SWE", "TAU"), benchmark_rows, joint_group_labels, strict=True
+    ):
+        labels = tuple(
+            sorted(
+                {label for cell in labels_by_cell for label in cell},
+                key=lambda label: (label.kind.value, label.value),
+            )
+        )
+        manifest.extend((benchmark, label) for label in labels)
+        if any(
+            len(counts.joint_group_pattern_counts) != len(labels_by_cell)
+            for counts in counts_rows
+        ):
+            raise RecordValidationError("joint group labels do not match simulated group cells")
+        joint = np.asarray(
+            [counts.joint_group_pattern_counts for counts in counts_rows],
+            dtype=np.int64,
+        )
+        incidence = np.asarray(
+            [[int(label in cell) for cell in labels_by_cell] for label in labels],
+            dtype=np.int64,
+        )
+        grouped.append(np.einsum("nci,lc->nli", joint, incidence, optimize=True))
+    return tuple(manifest), np.concatenate(grouped, axis=1)
 
 
 def _raw_contrast_rows(counts: BenchmarkPatternCounts) -> np.ndarray:
@@ -500,13 +531,14 @@ def bivariate_normal_cdf_equal_threshold(threshold: float, rho: float) -> float:
         return _phi(threshold)
     if rho == -1.0:
         return max(0.0, 2.0 * _phi(threshold) - 1.0)
-    nodes, weights = np.polynomial.legendre.leggauss(GAUSS_LEGENDRE_ORDER)
+    nodes, weights = _gauss_legendre_base_rule(GAUSS_LEGENDRE_ORDER)
     lo, hi = 0.0, rho
     points = (hi - lo) * (nodes + 1.0) / 2.0 + lo
     density = np.exp(-(threshold * threshold) / (1.0 + points)) / (2.0 * pi * np.sqrt(1.0 - points * points))
     return _phi(threshold) ** 2 + float((hi - lo) * np.dot(weights, density) / 2.0)
 
 
+@lru_cache(maxsize=65536)
 def gaussian_max_critical(correlation: float, alpha: float) -> float:
     if not 0.0 < alpha < 1.0:
         raise ValueError("alpha must be a strict probability")
@@ -737,10 +769,11 @@ class RosterBoundPowerAuthority:
     schema_version: Literal["1"]
     authority_kind: Literal["roster_bound_selection"]
     manifest_ref: ArtifactRef
-    eligibility_manifest_ref: ArtifactRef
-    ceremony_receipt_ref: ArtifactRef
+    eligibility_manifest_ref: ArtifactRef | None
+    ceremony_receipt_ref: ArtifactRef | None
     roster_ref: ArtifactRef
     tier_membership_sha256: str
+    prelaunch_protocol_amendment_ref: ArtifactRef | None = None
 
 
 PowerAuthority = SyntheticPowerAuthority | RosterBoundPowerAuthority | ImplementationVerificationPowerAuthority
@@ -848,7 +881,7 @@ def _load_roster(ref: ArtifactRef, *, run_root: Path) -> Mapping[str, object]:
     roster = closed_mapping(decoded, fields={"record_kind", "schema_version", "roster_kind", "supported_tiers", "tasks"}, field="power roster")
     if roster["record_kind"] != "resampling_roster_v1" or roster["schema_version"] != "1":
         raise RecordValidationError("power roster has wrong identity")
-    if roster["roster_kind"] not in {"synthetic_fixture", "eligible_confirmation"}:
+    if roster["roster_kind"] not in {"synthetic_fixture", "eligible_confirmation", "prospective_frozen"}:
         raise RecordValidationError("power roster has unsupported roster_kind")
     return roster
 
@@ -1026,8 +1059,23 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
                 "1", "implementation_verification", manifest_ref, roster_ref, membership,
             )
         return SyntheticPowerAuthority("1", "synthetic_validation", manifest_ref, roster_ref, membership)
+    if roster["roster_kind"] == "prospective_frozen":
+        if eligibility is not None or manifest.get("roster_ceremony_receipt_ref") is not None:
+            raise RecordValidationError("prospective roster authority forbids ceremony-derived eligibility")
+        amendment_ref = _manifest_ref(manifest, "prelaunch_protocol_amendment_ref")
+        amendment_path, amendment_raw = _read_ref(amendment_ref, run_root=run_root)
+        if (
+            amendment_path.name != "67-minimal-prelaunch-protocol-amendment-20260805.md"
+            or b"minimal official-study prelaunch gate" not in amendment_raw
+            or b"The external Sigstore, Rekor, drand, and live Node roster ceremony is retired" not in amendment_raw
+        ):
+            raise RecordValidationError("prospective roster authority requires the registered prelaunch amendment")
+        return RosterBoundPowerAuthority(
+            "1", "roster_bound_selection", manifest_ref, None, None, roster_ref, membership,
+            amendment_ref,
+        )
     if roster["roster_kind"] != "eligible_confirmation":
-        raise RecordValidationError("roster-bound authority requires eligible_confirmation roster")
+        raise RecordValidationError("roster-bound authority requires eligible_confirmation or prospective_frozen roster")
     if not isinstance(eligibility, Mapping):
         raise RecordValidationError(
             "roster-bound power authority unavailable: no eligible confirmation manifest"
@@ -1077,8 +1125,12 @@ def _authority_value(authority: PowerAuthority) -> dict[str, object]:
         "tier_membership_sha256": authority.tier_membership_sha256,
     }
     if isinstance(authority, RosterBoundPowerAuthority):
-        value["eligibility_manifest_ref"] = _ref_mapping(authority.eligibility_manifest_ref)
-        value["ceremony_receipt_ref"] = _ref_mapping(authority.ceremony_receipt_ref)
+        if authority.eligibility_manifest_ref is not None:
+            value["eligibility_manifest_ref"] = _ref_mapping(authority.eligibility_manifest_ref)
+        if authority.ceremony_receipt_ref is not None:
+            value["ceremony_receipt_ref"] = _ref_mapping(authority.ceremony_receipt_ref)
+        if authority.prelaunch_protocol_amendment_ref is not None:
+            value["prelaunch_protocol_amendment_ref"] = _ref_mapping(authority.prelaunch_protocol_amendment_ref)
     return value
 
 
@@ -1120,7 +1172,10 @@ def load_power_authority(authority_ref: ArtifactRef, *, run_root: Path) -> Power
     if not isinstance(value, Mapping):
         raise RecordValidationError("power authority must be a JSON object")
     kind = value.get("authority_kind")
-    fields = _AUTHORITY_COMMON_FIELDS | ({"eligibility_manifest_ref", "ceremony_receipt_ref"} if kind == "roster_bound_selection" else set())
+    if kind == "roster_bound_selection" and "prelaunch_protocol_amendment_ref" in value:
+        fields = _AUTHORITY_COMMON_FIELDS | {"prelaunch_protocol_amendment_ref"}
+    else:
+        fields = _AUTHORITY_COMMON_FIELDS | ({"eligibility_manifest_ref", "ceremony_receipt_ref"} if kind == "roster_bound_selection" else set())
     decoded = closed_mapping(value, fields=fields, field="power authority")
     if decoded["schema_version"] != "1" or kind not in {
         "synthetic_validation", "roster_bound_selection", "implementation_verification",
@@ -1392,17 +1447,17 @@ def _assert_power_write_open(config: PowerConfig, *, run_root: Path, stage: str,
 
 def _projected_screen_wall_seconds(*, elapsed_seconds: float, measured_datasets_per_cell: int,
                                   cell_count: int, production_datasets_per_cell: int,
-                                  shard_count: int) -> int:
+                                  shard_count: int, execution_workers: int = 1) -> int:
     """Fail-closed total-work projection from measured work to production work.
 
-    A shard count partitions immutable receipts; it is not an authorization to
-    assume that an unimplemented controller will supply that many concurrent
-    workers.  The registered 12-hour cap therefore charges the complete
-    workload, irrespective of a resume topology.
+    The probe itself runs with the manifest-bound executor width, so its
+    elapsed value already includes exactly one concurrency discount.  The
+    projection must not divide by that width a second time.
     """
     if (not np.isfinite(elapsed_seconds) or elapsed_seconds <= 0.0
             or any(type(value) is not int or value <= 0 for value in (
-                measured_datasets_per_cell, cell_count, production_datasets_per_cell, shard_count,
+                measured_datasets_per_cell, cell_count, production_datasets_per_cell,
+                shard_count, execution_workers,
             ))):
         raise RecordValidationError("screen timing projection requires positive finite measured work")
     return int(np.ceil(
@@ -1411,12 +1466,87 @@ def _projected_screen_wall_seconds(*, elapsed_seconds: float, measured_datasets_
     ))
 
 
+def _screen_execution_workers(config: PowerConfig, *, run_root: Path) -> int:
+    """Return the manifest-bound process width admitted by the topology."""
+
+    path, raw = _read_ref(config.screen_topology_ref, run_root=run_root)
+    value = load_json_bytes(raw, source=path)
+    if canonical_json_bytes(value, indent=None) != raw or not isinstance(value, Mapping):
+        raise RecordValidationError("power screen topology must be compact canonical JSON")
+    if value == {
+        "contract_id": "p0-power-screen-topology-v1",
+        "schema_version": "1",
+        "shard_partitioning": "contiguous-frozen-cell-range-v1",
+    }:
+        return 1
+    expected = {
+        "contract_id",
+        "executor",
+        "logical_cpu_evidence",
+        "max_concurrent_shards",
+        "schema_version",
+        "shard_partitioning",
+    }
+    if set(value) != expected:
+        raise RecordValidationError("power screen topology v2 has an open or incomplete shape")
+    workers = value.get("max_concurrent_shards")
+    logical_cpus = value.get("logical_cpu_evidence")
+    if (
+        value.get("contract_id") != "p0-power-screen-topology-v2"
+        or value.get("schema_version") != "2"
+        or value.get("executor") != "local-process-pool-v1"
+        or value.get("shard_partitioning") != "contiguous-frozen-cell-range-v1"
+        or type(workers) is not int
+        or type(logical_cpus) is not int
+        or logical_cpus < 1
+        or not 1 <= workers <= logical_cpus
+    ):
+        raise RecordValidationError("power screen topology v2 is invalid")
+    observed_cpus = os.cpu_count()
+    if observed_cpus is None or observed_cpus < workers:
+        raise RecordValidationError("executing host cannot supply the frozen power concurrency")
+    return workers
+
+
+def _timing_probe_cell_digest(
+    item: tuple[
+        PowerCell,
+        PowerAuthority,
+        str,
+        str,
+        tuple[tuple[int, ...], tuple[int, ...]],
+        tuple[
+            tuple[tuple[GroupLabel, ...], ...],
+            tuple[tuple[GroupLabel, ...], ...],
+        ] | None,
+        int,
+    ],
+) -> str:
+    cell, authority, digest, phase, roster_group_sizes, joint_group_labels, datasets_per_cell = item
+    totals, receipt = _gate_totals_for_cell(
+        cell,
+        authority=authority,
+        digest=digest,
+        phase=phase,
+        roster_group_sizes=roster_group_sizes,
+        dataset_count=datasets_per_cell,
+        draw_domain="screen",
+        joint_group_labels=joint_group_labels,
+    )
+    return hashlib.sha256(
+        canonical_json_bytes(
+            {"cell_id": cell.cell_id, "gate_totals": totals, "replay_receipt": receipt},
+            indent=None,
+        )
+    ).hexdigest()
+
+
 def _production_timing_probe_commitment(
     *, cells: tuple[PowerCell, ...], authority: PowerAuthority, digest: str,
     phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
     joint_group_labels: tuple[
         tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
-    ] | None, datasets_per_cell: int,
+    ] | None, datasets_per_cell: int, execution_workers: int = 1,
 ) -> str:
     """Replay the fixed all-cell screen kernel and commit its exact receipts.
 
@@ -1424,17 +1554,23 @@ def _production_timing_probe_commitment(
     shard.  It is expensive enough to be a real admission test, but bounded by
     the manifest-frozen 200 draws per cell rather than production's 20,000.
     """
-    receipts: list[str] = []
-    for cell in cells:
-        totals, receipt = _gate_totals_for_cell(
-            cell, authority=authority, digest=digest, phase=phase,
-            roster_group_sizes=roster_group_sizes, dataset_count=datasets_per_cell,
-            draw_domain="screen", joint_group_labels=joint_group_labels,
+    items = [
+        (
+            cell,
+            authority,
+            digest,
+            phase,
+            roster_group_sizes,
+            joint_group_labels,
+            datasets_per_cell,
         )
-        receipts.append(hashlib.sha256(canonical_json_bytes({
-            "cell_id": cell.cell_id, "gate_totals": totals,
-            "replay_receipt": receipt,
-        }, indent=None)).hexdigest())
+        for cell in cells
+    ]
+    if execution_workers == 1:
+        receipts = [_timing_probe_cell_digest(item) for item in items]
+    else:
+        with ProcessPoolExecutor(max_workers=execution_workers) as executor:
+            receipts = list(executor.map(_timing_probe_cell_digest, items, chunksize=8))
     return hashlib.sha256(canonical_json_bytes({
         "contract_id": "p0-production-timing-probe-v1",
         "authority_kind": authority.authority_kind,
@@ -1454,14 +1590,14 @@ def _production_timing_probe(
     phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
     joint_group_labels: tuple[
         tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
-    ] | None, datasets_per_cell: int,
+    ] | None, datasets_per_cell: int, execution_workers: int = 1,
 ) -> dict[str, object]:
     """Run the frozen representative timing work and return its replay handle."""
     started = perf_counter()
     commitment = _production_timing_probe_commitment(
         cells=cells, authority=authority, digest=digest, phase=phase,
         roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
-        datasets_per_cell=datasets_per_cell,
+        datasets_per_cell=datasets_per_cell, execution_workers=execution_workers,
     )
     elapsed = perf_counter() - started
     if not np.isfinite(elapsed) or elapsed <= 0.0:
@@ -1475,6 +1611,7 @@ def _production_timing_probe(
         )).hexdigest(),
         "replay_receipts_sha256": commitment,
         "measured_wall_seconds": elapsed,
+        "execution_workers": execution_workers,
     }
 
 
@@ -1484,19 +1621,25 @@ def validate_production_timing_probe(
     joint_group_labels: tuple[
         tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
     ] | None, datasets_per_cell: int, expected_replay_receipts_sha256: str | None = None,
+    execution_workers: int = 1,
 ) -> None:
     """Replay a sealed screen probe; elapsed time is evidence, not a secret input."""
     if receipt.get("contract_id") != "p0-production-timing-probe-v1":
         raise RecordValidationError("screen timing probe has an unknown contract")
     expected_ids = hashlib.sha256(canonical_json_bytes([cell.cell_id for cell in cells], indent=None)).hexdigest()
-    if receipt.get("dataset_count") != datasets_per_cell or receipt.get("cell_count") != len(cells) or receipt.get("cell_ids_sha256") != expected_ids:
+    if (
+        receipt.get("dataset_count") != datasets_per_cell
+        or receipt.get("cell_count") != len(cells)
+        or receipt.get("cell_ids_sha256") != expected_ids
+        or receipt.get("execution_workers", 1) != execution_workers
+    ):
         raise RecordValidationError("screen timing probe does not bind the frozen production layout")
     expected = expected_replay_receipts_sha256
     if expected is None:
         expected = _production_timing_probe_commitment(
             cells=cells, authority=authority, digest=digest, phase=phase,
             roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
-            datasets_per_cell=datasets_per_cell,
+            datasets_per_cell=datasets_per_cell, execution_workers=execution_workers,
         )
     if receipt.get("replay_receipts_sha256") != expected:
         raise RecordValidationError("screen timing probe replay receipts differ from regenerated production work")
@@ -1558,6 +1701,7 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
     digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     layout = _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
     labels = _roster_joint_group_labels(authority, run_root=run_root, tier=config.tier)
+    execution_workers = _screen_execution_workers(config, run_root=run_root)
     # The timing receipt replays every production cell through the same Task-7
     # count gate as a shard.  A single convenient cell is neither representative
     # nor authority to promise a parallel executor.
@@ -1565,6 +1709,7 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
         cells=cells, authority=authority, digest=digest, phase=phase,
         roster_group_sizes=layout, joint_group_labels=labels,
         datasets_per_cell=grid.screen_datasets_per_cell,
+        execution_workers=execution_workers,
     )
     # This is the one authoritative replay: the commitment was just produced
     # by the all-cell production kernel under the screen-generation lock.
@@ -1575,6 +1720,7 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
         roster_group_sizes=layout, joint_group_labels=labels,
         datasets_per_cell=grid.screen_datasets_per_cell,
         expected_replay_receipts_sha256=cast(str, timing_probe["replay_receipts_sha256"]),
+        execution_workers=execution_workers,
     )
     if phase == "full_multiplier_fallback":
         # Measure the actual registered expensive kernel before allowing a
@@ -1591,7 +1737,7 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
     projected = _projected_screen_wall_seconds(
         elapsed_seconds=cast(float, timing_probe["measured_wall_seconds"]) / len(cells),
         measured_datasets_per_cell=grid.screen_datasets_per_cell, cell_count=len(cells), production_datasets_per_cell=grid.datasets_per_cell,
-        shard_count=shard_count,
+        shard_count=shard_count, execution_workers=execution_workers,
     )
     if projected > grid.max_projected_wall_seconds:
         raise RecordValidationError("screen projection exceeds frozen 12-hour wall-clock cap")
@@ -1626,10 +1772,12 @@ def _validate_screen_timing_admission(screen_ref: ArtifactRef, screen: Mapping[s
     """Check the locked, authority-bound timing receipt without redoing its work."""
     grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     cells = frozen_power_cells(grid)
+    execution_workers = _screen_execution_workers(config, run_root=run_root)
     probe = screen.get("timing_probe")
     if (screen.get("cell_count") != len(cells)
             or screen.get("dataset_count") != grid.screen_datasets_per_cell
-            or not isinstance(probe, Mapping)):
+            or not isinstance(probe, Mapping)
+            or probe.get("execution_workers", 1) != execution_workers):
         raise RecordValidationError("screen timing admission does not use the frozen 2916-cell/200-dataset probe")
     if probe.get("authority_ref_sha256") != config.authority_ref.sha256:
         raise RecordValidationError("screen timing admission is not bound to this power authority")
@@ -1641,7 +1789,7 @@ def _validate_screen_timing_admission(screen_ref: ArtifactRef, screen: Mapping[s
         elapsed_seconds=float(elapsed) / len(cells),
         measured_datasets_per_cell=grid.screen_datasets_per_cell,
         cell_count=len(cells), production_datasets_per_cell=grid.datasets_per_cell,
-        shard_count=cast(int, screen["shard_count"]),
+        shard_count=cast(int, screen["shard_count"]), execution_workers=execution_workers,
     )
     if (screen.get("projected_wall_seconds") != projected
             or projected > grid.max_projected_wall_seconds):
@@ -2061,6 +2209,81 @@ def select_roster_tier(
     return "FEASIBILITY_NO_GO"
 
 
+def _validate_c160_feasibility_no_go(
+    feasibility_ref: ArtifactRef,
+    *,
+    authority: RosterBoundPowerAuthority,
+    config: PowerConfig,
+    grid_digest: str,
+    run_root: Path,
+) -> None:
+    """Verify that C160 is structurally impossible for the frozen roster.
+
+    A structural no-go is not a failed or skipped numeric power result.  It is
+    admissible only when the exact authority-bound roster contains the complete
+    C120 design (120 tasks per benchmark) and contains no C160 extension.
+    """
+
+    path, raw = _read_ref(feasibility_ref, run_root=run_root)
+    value = closed_mapping(
+        load_json_bytes(raw, source=path),
+        fields={
+            "contract_id",
+            "schema_version",
+            "study_id",
+            "tier",
+            "decision",
+            "reason",
+            "authority_ref_sha256",
+            "roster_ref_sha256",
+            "tier_membership_sha256",
+            "rng_contract_sha256",
+            "grid_content_sha256",
+            "amendment_ref_sha256",
+            "task_counts",
+        },
+        field="C160 structural feasibility receipt",
+    )
+    if (
+        value["contract_id"] != "official-power-tier-feasibility-v1"
+        or value["schema_version"] != "1"
+        or value["study_id"] != "neurips-2026-resampling-null"
+        or value["tier"] != 160
+        or value["decision"] != "FEASIBILITY_NO_GO"
+        or value["reason"] != "frozen_eligible_roster_has_no_c160_extension"
+    ):
+        raise RecordValidationError("C160 structural feasibility receipt has the wrong contract or decision")
+    if authority.prelaunch_protocol_amendment_ref is None:
+        raise RecordValidationError("C160 structural no-go requires the prospective prelaunch amendment")
+    expected = {
+        "authority_ref_sha256": config.authority_ref.sha256,
+        "roster_ref_sha256": authority.roster_ref.sha256,
+        "tier_membership_sha256": authority.tier_membership_sha256,
+        "rng_contract_sha256": config.rng_contract_sha256,
+        "grid_content_sha256": grid_digest,
+        "amendment_ref_sha256": authority.prelaunch_protocol_amendment_ref.sha256,
+    }
+    if any(value[field] != expected_value for field, expected_value in expected.items()):
+        raise RecordValidationError("C160 structural feasibility receipt is not bound to the frozen power authority")
+    if value["task_counts"] != {"SWE": 120, "TAU": 120}:
+        raise RecordValidationError("C160 structural no-go requires exactly 120 frozen tasks per benchmark")
+
+    roster_path, roster_raw = _read_ref(authority.roster_ref, run_root=run_root)
+    roster = load_json_bytes(roster_raw, source=roster_path)
+    if not isinstance(roster, Mapping) or not isinstance(roster.get("tasks"), list):
+        raise RecordValidationError("C160 structural no-go roster is malformed")
+    observed = {"SWE": 0, "TAU": 0}
+    for task in cast(list[object], roster["tasks"]):
+        if not isinstance(task, Mapping) or task.get("benchmark") not in observed:
+            raise RecordValidationError("C160 structural no-go roster contains an unregistered benchmark")
+        tiers = task.get("tiers")
+        if tiers != [120]:
+            raise RecordValidationError("C160 structural no-go is invalid when any frozen task belongs to C160")
+        observed[cast(str, task["benchmark"])] += 1
+    if observed != {"SWE": 120, "TAU": 120}:
+        raise RecordValidationError("C160 structural no-go roster counts differ from the sealed receipt")
+
+
 def _roster_tier_decision_from_validation(
     validation: Mapping[str, object],
     *,
@@ -2075,7 +2298,10 @@ def _roster_tier_decision_from_validation(
     )
     numeric_path, numeric_raw = _read_ref(numeric_ref, run_root=run_root)
     numeric = load_json_bytes(numeric_raw, source=numeric_path)
-    if not isinstance(numeric, Mapping) or numeric.get("contract_id") != "p0-roster-tier-decision-v1":
+    if not isinstance(numeric, Mapping) or numeric.get("contract_id") not in {
+        "p0-roster-tier-decision-v1",
+        "p0-roster-tier-decision-v2",
+    }:
         raise RecordValidationError("roster-bound finalization requires the registered per-tier power receipt")
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     expected_grid_digest = grid_content_sha256(
@@ -2106,9 +2332,29 @@ def _roster_tier_decision_from_validation(
         raise RecordValidationError(
             "roster validation tier differs from the selected C120/C160 configuration"
         )
-    decision = select_roster_tier(
-        cast(Mapping[int | str, Sequence[Mapping[str, object]]], tier_results)
-    )
+    if numeric.get("contract_id") == "p0-roster-tier-decision-v1":
+        decision = select_roster_tier(
+            cast(Mapping[int | str, Sequence[Mapping[str, object]]], tier_results)
+        )
+    else:
+        if set(tier_results) != {"120"}:
+            raise RecordValidationError("structural-feasibility tier receipt must contain exactly C120 numeric rows")
+        feasibility_refs = numeric.get("feasibility_refs")
+        if not isinstance(feasibility_refs, Mapping) or set(feasibility_refs) != {"160"}:
+            raise RecordValidationError("structural-feasibility tier receipt lacks the C160 no-go ancestry")
+        if not isinstance(authority, RosterBoundPowerAuthority):
+            raise RecordValidationError("structural-feasibility tier receipt requires roster-bound authority")
+        _validate_c160_feasibility_no_go(
+            decode_artifact_ref(feasibility_refs["160"], field="C160 feasibility ref"),
+            authority=authority,
+            config=config,
+            grid_digest=expected_grid_digest,
+            run_root=run_root,
+        )
+        rows = tier_results["120"]
+        if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
+            raise RecordValidationError("C120 numeric rows are malformed")
+        decision = "C120" if _tier_passes(rows) else "FEASIBILITY_NO_GO"
     return decision
 
 
@@ -2134,9 +2380,10 @@ def _roster_tier_from_validation(
 
 def seal_roster_tier_decision_receipt(
     c120_validation_ref: ArtifactRef,
-    c160_validation_ref: ArtifactRef,
+    c160_validation_ref: ArtifactRef | None,
     config: PowerConfig,
     *,
+    c160_feasibility_ref: ArtifactRef | None = None,
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
@@ -2153,9 +2400,15 @@ def seal_roster_tier_decision_receipt(
     digest = grid_content_sha256(
         config.grid_ref, run_root=run_root, authority_kind=config.authority_kind
     )
+    if (c160_validation_ref is None) == (c160_feasibility_ref is None):
+        raise RecordValidationError("tier receipt requires exactly one C160 validation or structural feasibility no-go")
     entries: dict[str, object] = {}
-    validation_refs = {"120": c120_validation_ref, "160": c160_validation_ref}
+    validation_refs = {"120": c120_validation_ref}
+    if c160_validation_ref is not None:
+        validation_refs["160"] = c160_validation_ref
     for tier, ref in ((120, c120_validation_ref), (160, c160_validation_ref)):
+        if ref is None:
+            continue
         validation = _report(ref, run_root=run_root, stage="validation")
         if validation.get("power_tier") != tier:
             raise RecordValidationError(
@@ -2197,8 +2450,12 @@ def seal_roster_tier_decision_receipt(
             raise RecordValidationError(f"C{tier} numeric receipt rows are malformed")
         _tier_passes(rows)
         entries[str(tier)] = list(rows)
-    combined = {
-        "contract_id": "p0-roster-tier-decision-v1",
+    combined: dict[str, object] = {
+        "contract_id": (
+            "p0-roster-tier-decision-v1"
+            if c160_validation_ref is not None
+            else "p0-roster-tier-decision-v2"
+        ),
         "authority_ref_sha256": config.authority_ref.sha256,
         "tier_membership_sha256": authority.tier_membership_sha256,
         "rng_contract_sha256": config.rng_contract_sha256,
@@ -2208,6 +2465,17 @@ def seal_roster_tier_decision_receipt(
         },
         "tier_results": entries,
     }
+    if c160_feasibility_ref is not None:
+        if not isinstance(authority, RosterBoundPowerAuthority):
+            raise RecordValidationError("C160 structural no-go requires roster-bound authority")
+        _validate_c160_feasibility_no_go(
+            c160_feasibility_ref,
+            authority=authority,
+            config=config,
+            grid_digest=digest,
+            run_root=run_root,
+        )
+        combined["feasibility_refs"] = {"160": _ref_mapping(c160_feasibility_ref)}
     return _write_validation_evidence(
         out,
         combined,

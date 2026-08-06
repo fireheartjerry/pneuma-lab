@@ -97,10 +97,50 @@ def _git_commit() -> str:
 def _build_task_registry(package: Path, *, swe_source: Path, tau_source: Path) -> Path:
     swe = _load(swe_source)
     tau = _load(tau_source)
-    tasks: list[dict[str, object]] = []
+    # C120 is 120 *per benchmark*.  The Step 5B files retain qualification
+    # pools (including pilot/reserve capacity), not the final confirmation
+    # roster itself.  Materialize the registered C120 allocation here before
+    # anything can be bound into an official run specification.
+    swe_quota = {
+        "c": 9,
+        "cpp": 14,
+        "cs": 16,
+        "go": 17,
+        "java": 16,
+        "js": 16,
+        "rust": 16,
+        "ts": 16,
+    }
+    tau_quota = {"airline": 40, "telecom": 40, "banking": 40}
+    swe_rows_by_language: dict[str, list[dict[str, Any]]] = {key: [] for key in swe_quota}
     for row in swe.get("rows", []):
         if not isinstance(row, dict):
             raise CloudManifestError("SWE selection contains a non-object row")
+        language = row.get("language")
+        if language not in swe_rows_by_language:
+            raise CloudManifestError("SWE selection contains an unregistered language")
+        swe_rows_by_language[language].append(row)
+    selected_swe: list[dict[str, Any]] = []
+    for language, quota in swe_quota.items():
+        candidates = swe_rows_by_language[language]
+        if len(candidates) < quota:
+            raise CloudManifestError(f"SWE C120 roster lacks {language} candidates")
+        selected_swe.extend(candidates[:quota])
+
+    eligible_tau = tau.get("eligible_task_ids")
+    if not isinstance(eligible_tau, dict):
+        raise CloudManifestError("tau2 selection lacks sealed eligible_task_ids")
+    selected_tau: list[dict[str, str]] = []
+    for domain, quota in tau_quota.items():
+        task_ids = eligible_tau.get(domain)
+        if not isinstance(task_ids, list) or any(not isinstance(task_id, str) or not task_id for task_id in task_ids):
+            raise CloudManifestError(f"tau2 selection lacks a sealed {domain} pool")
+        if len(task_ids) < quota:
+            raise CloudManifestError(f"tau2 C120 roster lacks {domain} candidates")
+        selected_tau.extend({"domain": domain, "task_id": task_id} for task_id in task_ids[:quota])
+
+    tasks: list[dict[str, object]] = []
+    for row in selected_swe:
         instance_id = row.get("instance_id")
         language = row.get("language")
         repo = row.get("repo")
@@ -119,9 +159,7 @@ def _build_task_registry(package: Path, *, swe_source: Path, tau_source: Path) -
                 ],
             }
         )
-    for row in tau.get("rows", []):
-        if not isinstance(row, dict):
-            raise CloudManifestError("tau2 selection contains a non-object row")
+    for row in selected_tau:
         domain = row.get("domain")
         task_id = row.get("task_id")
         if not isinstance(domain, str) or not domain or not isinstance(task_id, str) or not task_id:
@@ -132,7 +170,14 @@ def _build_task_registry(package: Path, *, swe_source: Path, tau_source: Path) -
                 "benchmark": "TAU",
                 "stratum": f"domain:{domain}",
                 "lineage": f"tau2:{domain}:{task_id}",
-                "groups": [{"kind": "domain", "value": domain}],
+                "groups": [
+                    {"kind": "domain", "value": domain},
+                    *(
+                        [{"kind": "issue_family", "value": task_id.split("]", 1)[0][1:]}]
+                        if domain == "telecom" and task_id.startswith("[") and "]" in task_id
+                        else []
+                    ),
+                ],
             }
         )
     registry: dict[str, object] = {
@@ -284,6 +329,13 @@ def _build_provider_binding(package: Path) -> Path:
             "spot_only": True,
             "max_attempts": 1,
             "official_topology": "two-independent-8-vcpu-one-l40s-workers",
+            "allowed_actions": [
+                "official_model",
+                "approved_benchmark",
+                "canonical_p0_grid",
+                "task_block_execution",
+                "sealed_output_publication",
+            ],
         },
         "bounded_surface_deployment": {
             "deployment_id": "aws-ec2-ssm-cpu-production-role-surface-v2",
@@ -305,7 +357,15 @@ def _build_provider_binding(package: Path) -> Path:
             "custom_ssm_document": {"contract": "fixed-status-read-v1", "version": "1", "caller_parameters": False},
             "external_watchdog": True,
         },
-        "forbidden_actions": ["official_model", "approved_benchmark", "pilot", "canonical_p0_grid", "scientific_analysis", "unblind"],
+        "forbidden_actions_scope": "bounded_surface_deployment_only",
+        "forbidden_actions": [
+            "official_model",
+            "approved_benchmark",
+            "pilot",
+            "canonical_p0_grid",
+            "scientific_analysis",
+            "unblind",
+        ],
         "teardown": {"required": True, "active_resource_absence": True, "retained_artifacts": ["immutable_ecr_images", "sbom_records", "compact_receipts"]},
         "image_registry": {"repository_prefix": "pneuma-official-production", "tag_mutability": "IMMUTABLE", "scan_on_push": True, "encryption": "AES256"},
     }

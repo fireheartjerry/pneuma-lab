@@ -14,6 +14,7 @@ TOPOLOGY=${TOPOLOGY:?set TOPOLOGY to the manifest-bound screen topology ref path
 AUTHORITY=${AUTHORITY:-power/authority.json}
 SHARDS=${SHARDS:-64}
 WORKERS=${WORKERS:-6}
+TIER=${TIER:-}
 LOG=${LOG:-build/step4/shards.log}
 
 mkdir -p "$(dirname "$LOG")"
@@ -29,9 +30,13 @@ run_shard() {
     fi
     local started
     started=$SECONDS
+    local tier_args=()
+    if [ -n "$TIER" ]; then
+        tier_args=(--tier "$TIER")
+    fi
     if .venv/bin/python -m pneuma_lab.resampling_null --run-root "$ROOT" power simulate \
         --authority "$AUTHORITY" --grid-ref "$GRID" --screen-topology-ref "$TOPOLOGY" \
-        --screen "$SCREEN" --shard-index "$index" --out "$out" >> "$LOG" 2>&1; then
+        "${tier_args[@]}" --screen "$SCREEN" --shard-index "$index" --out "$out" >> "$LOG" 2>&1; then
         echo "ok $index in $((SECONDS - started))s" >> "$LOG"
     else
         echo "FAIL $index in $((SECONDS - started))s" >> "$LOG"
