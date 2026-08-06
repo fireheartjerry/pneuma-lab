@@ -19,7 +19,15 @@ from .records import ExperimentVersion, canonical_bytes
 
 BUCKET = "pneuma-phase-b-892077329800"
 REGION = "us-east-1"
-JOB_STATES = ("SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING", "SUCCEEDED", "FAILED")
+JOB_STATES = (
+    "SUBMITTED",
+    "PENDING",
+    "RUNNABLE",
+    "STARTING",
+    "RUNNING",
+    "SUCCEEDED",
+    "FAILED",
+)
 
 
 class OfficialTransport(Protocol):
@@ -27,7 +35,9 @@ class OfficialTransport(Protocol):
     def action_resources_exist(self, action_id: str) -> bool: ...
     def observe(self, action_id: str, parent_job_id: str) -> Observation: ...
     def collect_outputs(self, action_id: str, destination: Path) -> OutputArtifact: ...
-    def observed_cost_microusd(self, parent_job_id: str, fallback_microusd: int) -> int: ...
+    def observed_cost_microusd(
+        self, parent_job_id: str, fallback_microusd: int
+    ) -> int: ...
 
 
 def _default_runner(argv: list[str]) -> None:
@@ -94,13 +104,17 @@ class OfficialBatchAdapter:
 
     def seal_outputs(self, submission: Submission) -> OutputArtifact:
         del submission
-        return self.transport.collect_outputs(self.version.action_id, self.version_root / "outputs")
+        return self.transport.collect_outputs(
+            self.version.action_id, self.version_root / "outputs"
+        )
 
     def teardown(self, submission: Submission | None) -> int:
         self._cleanup("teardown.json")
         if submission is None:
             return 0
-        return self.transport.observed_cost_microusd(submission.parent_job_id, self.projected_microusd)
+        return self.transport.observed_cost_microusd(
+            submission.parent_job_id, self.projected_microusd
+        )
 
     def _cleanup(self, receipt_name: str) -> None:
         receipt = self.version_root / "provider" / receipt_name
@@ -108,7 +122,12 @@ class OfficialBatchAdapter:
         self.runner(
             [
                 sys.executable,
-                str(self.repo_root / "scripts" / "research" / "cleanup_official_batch.py"),
+                str(
+                    self.repo_root
+                    / "scripts"
+                    / "research"
+                    / "cleanup_official_batch.py"
+                ),
                 "--action-id",
                 self.version.action_id,
                 "--receipt",
@@ -151,7 +170,9 @@ class OfficialBatchAdapter:
 class Boto3OfficialTransport:
     """Read/collect transport; all infrastructure mutation stays in reviewed scripts."""
 
-    def __init__(self, *, poll_seconds: float = 30.0, max_hourly_usd: float = 2.2421) -> None:
+    def __init__(
+        self, *, poll_seconds: float = 30.0, max_hourly_usd: float = 2.2421
+    ) -> None:
         import boto3
 
         self.batch = boto3.client("batch", region_name=REGION)
@@ -167,12 +188,18 @@ class Boto3OfficialTransport:
         for status in JOB_STATES:
             token = None
             while True:
-                kwargs: dict[str, Any] = {"jobQueue": queue, "jobStatus": status, "maxResults": 100}
+                kwargs: dict[str, Any] = {
+                    "jobQueue": queue,
+                    "jobStatus": status,
+                    "maxResults": 100,
+                }
                 if token:
                     kwargs["nextToken"] = token
                 response = self.batch.list_jobs(**kwargs)
                 for row in response.get("jobSummaryList", []):
-                    if row.get("jobName") == action_id and "index" not in row.get("arrayProperties", {}):
+                    if row.get("jobName") == action_id and "index" not in row.get(
+                        "arrayProperties", {}
+                    ):
                         found.add(str(row["jobId"]))
                 token = response.get("nextToken")
                 if not token:
@@ -183,9 +210,15 @@ class Boto3OfficialTransport:
 
     def action_resources_exist(self, action_id: str) -> bool:
         return bool(
-            self.batch.describe_job_queues(jobQueues=[f"{action_id}-queue"]).get("jobQueues", [])
-            or self.batch.describe_compute_environments(computeEnvironments=[f"{action_id}-ce"]).get("computeEnvironments", [])
-            or self.batch.describe_job_definitions(jobDefinitionName=f"{action_id}-job", status="ACTIVE").get("jobDefinitions", [])
+            self.batch.describe_job_queues(jobQueues=[f"{action_id}-queue"]).get(
+                "jobQueues", []
+            )
+            or self.batch.describe_compute_environments(
+                computeEnvironments=[f"{action_id}-ce"]
+            ).get("computeEnvironments", [])
+            or self.batch.describe_job_definitions(
+                jobDefinitionName=f"{action_id}-job", status="ACTIVE"
+            ).get("jobDefinitions", [])
         )
 
     def observe(self, action_id: str, parent_job_id: str) -> Observation:
@@ -196,7 +229,16 @@ class Boto3OfficialTransport:
                 raise RuntimeError("official parent job identity differs")
             status = str(rows[0].get("status"))
             if status != last_status:
-                print(json.dumps({"event": "AWS_BATCH_STATUS", "action_id": action_id, "status": status}), flush=True)
+                print(
+                    json.dumps(
+                        {
+                            "event": "AWS_BATCH_STATUS",
+                            "action_id": action_id,
+                            "status": status,
+                        }
+                    ),
+                    flush=True,
+                )
                 last_status = status
             evidence = hashlib.sha256(canonical_bytes(rows[0])).hexdigest()
             if status in {"SUCCEEDED", "FAILED"}:
@@ -211,13 +253,24 @@ class Boto3OfficialTransport:
             for row in page.get("Contents", []):
                 key = str(row["Key"])
                 relative = key.removeprefix(prefix)
-                if not relative or relative.startswith("/") or ".." in Path(relative).parts:
+                if (
+                    not relative
+                    or relative.startswith("/")
+                    or ".." in Path(relative).parts
+                ):
                     raise RuntimeError("unsafe official output key")
                 target = destination / "raw" / Path(relative)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 self.s3.download_file(BUCKET, key, str(target))
                 digest = hashlib.sha256(target.read_bytes()).hexdigest()
-                objects.append({"key": key, "relative_path": str(Path("raw") / relative), "byte_count": target.stat().st_size, "sha256": digest})
+                objects.append(
+                    {
+                        "key": key,
+                        "relative_path": str(Path("raw") / relative),
+                        "byte_count": target.stat().st_size,
+                        "sha256": digest,
+                    }
+                )
         if not objects:
             raise RuntimeError("official output prefix is empty")
         index = {
@@ -238,13 +291,19 @@ class Boto3OfficialTransport:
         for status in JOB_STATES:
             token = None
             while True:
-                kwargs: dict[str, Any] = {"arrayJobId": parent_job_id, "jobStatus": status, "maxResults": 100}
+                kwargs: dict[str, Any] = {
+                    "arrayJobId": parent_job_id,
+                    "jobStatus": status,
+                    "maxResults": 100,
+                }
                 if token:
                     kwargs["nextToken"] = token
                 response = self.batch.list_jobs(**kwargs)
                 ids = [str(row["jobId"]) for row in response.get("jobSummaryList", [])]
                 for start in range(0, len(ids), 100):
-                    for job in self.batch.describe_jobs(jobs=ids[start : start + 100]).get("jobs", []):
+                    for job in self.batch.describe_jobs(
+                        jobs=ids[start : start + 100]
+                    ).get("jobs", []):
                         started = int(job.get("startedAt", 0))
                         stopped = int(job.get("stoppedAt", 0))
                         if started > 0 and stopped >= started:
@@ -255,4 +314,7 @@ class Boto3OfficialTransport:
                     break
         if found < 2:
             return fallback_microusd
-        return min(fallback_microusd, math.ceil((durations_ms / 3_600_000) * self.max_hourly_usd * 1_000_000))
+        return min(
+            fallback_microusd,
+            math.ceil((durations_ms / 3_600_000) * self.max_hourly_usd * 1_000_000),
+        )

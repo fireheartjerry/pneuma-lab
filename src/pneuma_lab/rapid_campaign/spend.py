@@ -41,7 +41,11 @@ class SpendLedger:
 
     @property
     def observed_microusd(self) -> int:
-        return sum(entry.observed_microusd or 0 for entry in self._entries.values() if not entry.released)
+        return sum(
+            entry.observed_microusd or 0
+            for entry in self._entries.values()
+            if not entry.released
+        )
 
     @property
     def outstanding_microusd(self) -> int:
@@ -60,7 +64,11 @@ class SpendLedger:
         return self.controlled_total_microusd > self.ceiling_microusd
 
     def _version_total(self, version_id: str) -> int:
-        return sum(entry.controlled_microusd for entry in self._entries.values() if entry.version_id == version_id)
+        return sum(
+            entry.controlled_microusd
+            for entry in self._entries.values()
+            if entry.version_id == version_id
+        )
 
     def reserve(
         self,
@@ -73,9 +81,15 @@ class SpendLedger:
         if reservation_id in self._entries:
             existing = self._entries[reservation_id]
             expected = (version_id, amount_microusd, version_ceiling_microusd)
-            actual = (existing.version_id, existing.reserved_microusd, existing.version_ceiling_microusd)
+            actual = (
+                existing.version_id,
+                existing.reserved_microusd,
+                existing.version_ceiling_microusd,
+            )
             if actual != expected:
-                raise SpendError("reservation identity was reused with different bindings")
+                raise SpendError(
+                    "reservation identity was reused with different bindings"
+                )
             return
         if type(amount_microusd) is not int or amount_microusd <= 0:
             raise SpendError("reservation amount must be positive")
@@ -96,7 +110,10 @@ class SpendLedger:
         entry = self._require(reservation_id)
         if type(observed_microusd) is not int or observed_microusd < 0:
             raise SpendError("observed cost must be a non-negative integer")
-        if entry.observed_microusd is not None and entry.observed_microusd != observed_microusd:
+        if (
+            entry.observed_microusd is not None
+            and entry.observed_microusd != observed_microusd
+        ):
             raise SpendError("observed cost is immutable once recorded")
         entry.observed_microusd = observed_microusd
 
@@ -131,15 +148,25 @@ class SpendLedger:
                     "observed_microusd": entry.observed_microusd,
                     "released": entry.released,
                 }
-                for entry in sorted(self._entries.values(), key=lambda item: item.reservation_id)
+                for entry in sorted(
+                    self._entries.values(), key=lambda item: item.reservation_id
+                )
             ],
         }
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> SpendLedger:
-        if set(payload) != {"record_kind", "schema_version", "ceiling_microusd", "entries"}:
+        if set(payload) != {
+            "record_kind",
+            "schema_version",
+            "ceiling_microusd",
+            "entries",
+        }:
             raise SpendError("spend ledger fields differ")
-        if payload["record_kind"] != "rapid_campaign_spend_ledger" or payload["schema_version"] != "0.1.0":
+        if (
+            payload["record_kind"] != "rapid_campaign_spend_ledger"
+            or payload["schema_version"] != "0.1.0"
+        ):
             raise SpendError("spend ledger kind/version differs")
         entries = payload["entries"]
         if not isinstance(entries, list):
@@ -162,7 +189,9 @@ class SpendLedger:
                 version_ceiling_microusd=item["version_ceiling_microusd"],
             )
             if item["observed_microusd"] is not None:
-                ledger.observe(item["reservation_id"], observed_microusd=item["observed_microusd"])
+                ledger.observe(
+                    item["reservation_id"], observed_microusd=item["observed_microusd"]
+                )
             if item["released"]:
                 ledger.release(item["reservation_id"])
         return ledger

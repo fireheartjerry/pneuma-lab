@@ -6,7 +6,9 @@ import json
 from pneuma_lab.rapid_campaign.cli import main
 
 
-def test_cli_initializes_dry_runs_and_completes_simulated_loop(tmp_path, capsys) -> None:
+def test_cli_initializes_dry_runs_and_completes_simulated_loop(
+    tmp_path, capsys
+) -> None:
     package = tmp_path / "package.tar.gz"
     package.write_bytes(b"package")
     package_sha = hashlib.sha256(package.read_bytes()).hexdigest()
@@ -54,7 +56,23 @@ def test_cli_initializes_dry_runs_and_completes_simulated_loop(tmp_path, capsys)
     )
     root = tmp_path / "campaign"
     common = ["--root", str(root)]
-    assert main(["init", *common, "--final-review", str(review), "--package", str(package), "--image-set", str(images), "--mode", "simulate"]) == 0
+    assert (
+        main(
+            [
+                "init",
+                *common,
+                "--final-review",
+                str(review),
+                "--package",
+                str(package),
+                "--image-set",
+                str(images),
+                "--mode",
+                "simulate",
+            ]
+        )
+        == 0
+    )
     assert main(["dry-run", *common]) == 0
     dry = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert dry["rerun_power"] is False

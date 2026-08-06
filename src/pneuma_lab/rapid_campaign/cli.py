@@ -11,7 +11,12 @@ from .adapters import SimulationAnalysis, SimulationExecution, SimulationReview
 from .official_adapter import Boto3OfficialTransport, OfficialBatchAdapter
 from .official_analysis import OfficialRegisteredAnalysis, RegisteredResultReview
 from .orchestrator import CampaignOrchestrator
-from .workspace import initialize_r2, load_workspace, save_spend, verify_workspace_bindings
+from .workspace import (
+    initialize_r2,
+    load_workspace,
+    save_spend,
+    verify_workspace_bindings,
+)
 
 
 def _emit(value: object) -> None:
@@ -28,7 +33,13 @@ def _init(args: argparse.Namespace) -> int:
         mode=args.mode,
         projected_microusd=round(args.projected_usd * 1_000_000),
     )
-    _emit({"status": "INITIALIZED", "campaign_id": manifest.campaign_id, "version_id": version.version_id})
+    _emit(
+        {
+            "status": "INITIALIZED",
+            "campaign_id": manifest.campaign_id,
+            "version_id": version.version_id,
+        }
+    )
     return 0
 
 
@@ -89,7 +100,11 @@ def _run(args: argparse.Namespace) -> int:
         )
         analysis = OfficialRegisteredAnalysis(
             power_root=Path(config["power_root"]),
-            destination=root / "versions" / version.version_id / "analysis" / "registered-result.json",
+            destination=root
+            / "versions"
+            / version.version_id
+            / "analysis"
+            / "registered-result.json",
         )
         review = RegisteredResultReview()
     orchestrator = CampaignOrchestrator(
@@ -103,7 +118,13 @@ def _run(args: argparse.Namespace) -> int:
     )
     result = orchestrator.run()
     save_spend(root, ledger)
-    _emit({"phase": result.phase, "decision": result.decision_code, "state_sha256": result.state_sha256})
+    _emit(
+        {
+            "phase": result.phase,
+            "decision": result.decision_code,
+            "state_sha256": result.state_sha256,
+        }
+    )
     return 0
 
 
@@ -113,7 +134,9 @@ def _stop(args: argparse.Namespace) -> int:
     if snapshot.phase != "teardown_complete":
         _emit({"status": "STOP_RECORDED", "phase": snapshot.phase, "mutation": False})
     else:
-        _emit({"status": "ALREADY_TERMINAL", "phase": snapshot.phase, "mutation": False})
+        _emit(
+            {"status": "ALREADY_TERMINAL", "phase": snapshot.phase, "mutation": False}
+        )
     return 0
 
 
@@ -129,7 +152,13 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--mode", choices=("simulate", "official"), default="official")
     init.add_argument("--projected-usd", type=float, default=1_000.0)
     init.set_defaults(handler=_init)
-    for name, handler in (("status", _status), ("dry-run", _dry_run), ("inspect", _inspect), ("run", _run), ("stop", _stop)):
+    for name, handler in (
+        ("status", _status),
+        ("dry-run", _dry_run),
+        ("inspect", _inspect),
+        ("run", _run),
+        ("stop", _stop),
+    ):
         command = sub.add_parser(name)
         command.add_argument("--root", required=True)
         command.set_defaults(handler=handler)

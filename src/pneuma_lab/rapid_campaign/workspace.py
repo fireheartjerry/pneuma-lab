@@ -58,7 +58,10 @@ def initialize_r2(
         raise WorkspaceError("final review kind differs")
     if review.get("verdict") != "READY_TO_SUBMIT":
         raise WorkspaceError("final review is not READY_TO_SUBMIT")
-    if review.get("experiment_submitted") is not False or review.get("scientific_workload_started") is not False:
+    if (
+        review.get("experiment_submitted") is not False
+        or review.get("scientific_workload_started") is not False
+    ):
         raise WorkspaceError("r2 final review is not at the unlaunched boundary")
     bindings = review.get("bindings")
     surface = review.get("registered_surface")
@@ -126,20 +129,40 @@ def initialize_r2(
     _write_once(root / "manifest.json", manifest.to_mapping())
     _write_once(root / "versions" / "r2.json", version.to_mapping())
     _write_once(root / "private-config.json", config)
-    _write_once(root / "spend.json", SpendLedger(ceiling_microusd=manifest.ceiling_microusd).to_mapping())
-    CampaignStateStore(root / "versions" / "r2" / "state.json", campaign_id=manifest.campaign_id, version_id="r2")
+    _write_once(
+        root / "spend.json",
+        SpendLedger(ceiling_microusd=manifest.ceiling_microusd).to_mapping(),
+    )
+    CampaignStateStore(
+        root / "versions" / "r2" / "state.json",
+        campaign_id=manifest.campaign_id,
+        version_id="r2",
+    )
     return manifest, version
 
 
-def load_workspace(root: Path) -> tuple[CampaignManifest, ExperimentVersion, dict[str, Any], SpendLedger, CampaignStateStore]:
+def load_workspace(
+    root: Path,
+) -> tuple[
+    CampaignManifest, ExperimentVersion, dict[str, Any], SpendLedger, CampaignStateStore
+]:
     try:
-        manifest = CampaignManifest.from_mapping(json.loads((root / "manifest.json").read_text(encoding="utf-8")))
-        version = ExperimentVersion.from_mapping(json.loads((root / "versions" / "r2.json").read_text(encoding="utf-8")))
+        manifest = CampaignManifest.from_mapping(
+            json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        )
+        version = ExperimentVersion.from_mapping(
+            json.loads((root / "versions" / "r2.json").read_text(encoding="utf-8"))
+        )
         config = json.loads((root / "private-config.json").read_text(encoding="utf-8"))
-        ledger = SpendLedger.from_mapping(json.loads((root / "spend.json").read_text(encoding="utf-8")))
+        ledger = SpendLedger.from_mapping(
+            json.loads((root / "spend.json").read_text(encoding="utf-8"))
+        )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         raise WorkspaceError("campaign workspace is unreadable or invalid") from exc
-    if not isinstance(config, dict) or config.get("record_kind") != "rapid_campaign_private_config":
+    if (
+        not isinstance(config, dict)
+        or config.get("record_kind") != "rapid_campaign_private_config"
+    ):
         raise WorkspaceError("private campaign configuration differs")
     store = CampaignStateStore(
         root / "versions" / "r2" / "state.json",
@@ -186,5 +209,7 @@ def verify_workspace_bindings(root: Path) -> dict[str, object]:
         "regenerate": [],
         "rerun_power": False,
         "rebuild_images": False,
-        "bindings_sha256": digest_record({"manifest": manifest.to_mapping(), "version": version.to_mapping()}),
+        "bindings_sha256": digest_record(
+            {"manifest": manifest.to_mapping(), "version": version.to_mapping()}
+        ),
     }

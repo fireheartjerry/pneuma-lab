@@ -48,6 +48,7 @@ def version() -> ExperimentVersion:
 
 def test_submit_is_exact_and_idempotent(tmp_path) -> None:
     commands = []
+
     def runner(argv):
         commands.append(argv)
         receipt = Path(argv[argv.index("--receipt") + 1])
@@ -83,7 +84,9 @@ def test_submit_is_exact_and_idempotent(tmp_path) -> None:
     assert str(adapter.package_path) in commands[0]
 
 
-def test_lost_response_recovers_one_discovered_parent_without_resubmit(tmp_path) -> None:
+def test_lost_response_recovers_one_discovered_parent_without_resubmit(
+    tmp_path,
+) -> None:
     transport = FakeTransport()
     transport.parent = "recovered"
     commands = []

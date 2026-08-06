@@ -32,14 +32,24 @@ def test_store_rejects_tampering(tmp_path) -> None:
 
 
 def test_submission_identity_is_immutable_and_idempotent(tmp_path) -> None:
-    store = CampaignStateStore(tmp_path / "state.json", campaign_id="campaign", version_id="r2")
+    store = CampaignStateStore(
+        tmp_path / "state.json", campaign_id="campaign", version_id="r2"
+    )
     store.append("classified", {"impact": "C0"})
     store.append("prepared", {})
     store.append("reserved", {"reservation_id": "run"})
     store.append("submitting", {"client_token": "token"})
-    first = store.record_submission(parent_job_id="parent", child_job_ids=("a", "b"), receipt_sha256="f" * 64)
+    first = store.record_submission(
+        parent_job_id="parent", child_job_ids=("a", "b"), receipt_sha256="f" * 64
+    )
     assert first.parent_job_id == "parent"
-    assert store.record_submission(parent_job_id="parent", child_job_ids=("a", "b"), receipt_sha256="f" * 64) == first
+    assert (
+        store.record_submission(
+            parent_job_id="parent", child_job_ids=("a", "b"), receipt_sha256="f" * 64
+        )
+        == first
+    )
     with pytest.raises(StateError, match="differs"):
-        store.record_submission(parent_job_id="other", child_job_ids=("a", "b"), receipt_sha256="f" * 64)
-
+        store.record_submission(
+            parent_job_id="other", child_job_ids=("a", "b"), receipt_sha256="f" * 64
+        )

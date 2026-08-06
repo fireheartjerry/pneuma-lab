@@ -22,16 +22,28 @@ class SimulationExecution:
 
     def submit(self, *, client_token: str) -> Submission:
         self.submit_calls += 1
-        receipt = {"client_token": client_token, "parent": "sim-parent", "children": ["sim-0", "sim-1"]}
-        return Submission("sim-parent", ("sim-0", "sim-1"), hashlib.sha256(canonical_bytes(receipt)).hexdigest())
+        receipt = {
+            "client_token": client_token,
+            "parent": "sim-parent",
+            "children": ["sim-0", "sim-1"],
+        }
+        return Submission(
+            "sim-parent",
+            ("sim-0", "sim-1"),
+            hashlib.sha256(canonical_bytes(receipt)).hexdigest(),
+        )
 
     def observe(self, submission: Submission) -> Observation:
-        return Observation(True, True, hashlib.sha256(submission.parent_job_id.encode()).hexdigest())
+        return Observation(
+            True, True, hashlib.sha256(submission.parent_job_id.encode()).hexdigest()
+        )
 
     def seal_outputs(self, submission: Submission) -> OutputArtifact:
         destination = self.root / "versions" / "r2" / "outputs" / "index.json"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        payload = canonical_bytes({"simulation": True, "submission": submission.parent_job_id})
+        payload = canonical_bytes(
+            {"simulation": True, "submission": submission.parent_job_id}
+        )
         destination.write_bytes(payload)
         return OutputArtifact(hashlib.sha256(payload).hexdigest(), str(destination))
 
@@ -68,7 +80,9 @@ class CommandAnalysis:
         environment = {**os.environ, "PNEUMA_SEALED_OUTPUT_INDEX": output.locator}
         subprocess.run(self.argv, check=True, env=environment)
         payload = self.output_path.read_bytes()
-        return AnalysisArtifact(hashlib.sha256(payload).hexdigest(), str(self.output_path))
+        return AnalysisArtifact(
+            hashlib.sha256(payload).hexdigest(), str(self.output_path)
+        )
 
 
 @dataclass

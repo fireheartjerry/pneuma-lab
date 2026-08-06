@@ -66,7 +66,8 @@ def test_version_rejects_invalid_parent_and_open_or_bad_digest_data() -> None:
     with pytest.raises(RecordError, match="unexpected"):
         ExperimentVersion.from_mapping(payload)
     with pytest.raises(RecordError, match="sha256"):
-        ExperimentVersion.from_mapping({**version.to_mapping(), "run_spec_sha256": "bad"})
+        ExperimentVersion.from_mapping(
+            {**version.to_mapping(), "run_spec_sha256": "bad"}
+        )
     with pytest.raises(RecordError, match="itself"):
         replace(version, parent_version_id="r3")
-

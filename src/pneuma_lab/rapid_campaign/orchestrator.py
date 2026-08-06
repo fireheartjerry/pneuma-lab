@@ -96,7 +96,9 @@ class CampaignOrchestrator:
         if phase == "draft":
             self.store.append("classified", {"impact": "ROOT", "rerun_power": False})
         elif phase == "classified":
-            self.store.append("prepared", {"version_sha256": self.version.run_spec_sha256})
+            self.store.append(
+                "prepared", {"version_sha256": self.version.run_spec_sha256}
+            )
         elif phase == "prepared":
             self.ledger.reserve(
                 self.reservation_id,
@@ -106,7 +108,10 @@ class CampaignOrchestrator:
             )
             self.store.append(
                 "reserved",
-                {"reservation_id": self.reservation_id, "projected_microusd": self.projected_microusd},
+                {
+                    "reservation_id": self.reservation_id,
+                    "projected_microusd": self.projected_microusd,
+                },
             )
         elif phase == "reserved":
             self.store.append("submitting", {"client_token": self.client_token})
@@ -122,14 +127,23 @@ class CampaignOrchestrator:
             try:
                 observation = self.execution.observe(submission)
             except Exception:
-                self.store.append("observation_error", {"submission": submission.parent_job_id})
+                self.store.append(
+                    "observation_error", {"submission": submission.parent_job_id}
+                )
                 raise
             if not observation.terminal:
-                self.store.append("observing", {"evidence_sha256": observation.evidence_sha256})
+                self.store.append(
+                    "observing", {"evidence_sha256": observation.evidence_sha256}
+                )
             elif observation.successful:
-                self.store.append("workload_terminal", {"evidence_sha256": observation.evidence_sha256})
+                self.store.append(
+                    "workload_terminal",
+                    {"evidence_sha256": observation.evidence_sha256},
+                )
             else:
-                self.store.append("workload_failed", {"evidence_sha256": observation.evidence_sha256})
+                self.store.append(
+                    "workload_failed", {"evidence_sha256": observation.evidence_sha256}
+                )
         elif phase == "workload_terminal":
             output = self.execution.seal_outputs(self._submission(snapshot))
             observed = self.execution.teardown(self._submission(snapshot))
@@ -147,7 +161,9 @@ class CampaignOrchestrator:
             payload = snapshot.events[-1]["payload"]
             output = OutputArtifact(payload["sha256"], payload["locator"])
             analysis = self.analysis.analyse(output)
-            self.store.append("analysed", {"sha256": analysis.sha256, "locator": analysis.locator})
+            self.store.append(
+                "analysed", {"sha256": analysis.sha256, "locator": analysis.locator}
+            )
         elif phase == "analysed":
             payload = snapshot.events[-1]["payload"]
             analysis = AnalysisArtifact(payload["sha256"], payload["locator"])
@@ -163,13 +179,17 @@ class CampaignOrchestrator:
             )
             self.store.append("reviewed", {"evaluation": evaluation.to_mapping()})
         elif phase == "reviewed":
-            evaluation = Evaluation.from_mapping(snapshot.events[-1]["payload"]["evaluation"])
+            evaluation = Evaluation.from_mapping(
+                snapshot.events[-1]["payload"]["evaluation"]
+            )
             decision = decide_result(evaluation)
             self._record_decision(decision)
         elif phase == "decided":
             self.store.append("teardown_started", {})
         elif phase in {"teardown_started", "teardown_failed"}:
-            submission = self._submission(snapshot) if snapshot.submission is not None else None
+            submission = (
+                self._submission(snapshot) if snapshot.submission is not None else None
+            )
             try:
                 observed = self.execution.teardown(submission)
                 self.ledger.observe(self.reservation_id, observed_microusd=observed)
@@ -195,8 +215,12 @@ class CampaignOrchestrator:
         value: SubmissionIdentity | None = snapshot.submission
         if value is None:
             raise RuntimeError("campaign has no durable submission identity")
-        return Submission(value.parent_job_id, value.child_job_ids, value.receipt_sha256)
+        return Submission(
+            value.parent_job_id, value.child_job_ids, value.receipt_sha256
+        )
 
     @staticmethod
     def _result(snapshot: CampaignSnapshot) -> CampaignRunResult:
-        return CampaignRunResult(snapshot.phase, snapshot.decision_code, snapshot.state_sha256)
+        return CampaignRunResult(
+            snapshot.phase, snapshot.decision_code, snapshot.state_sha256
+        )

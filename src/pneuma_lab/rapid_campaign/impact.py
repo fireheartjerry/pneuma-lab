@@ -14,15 +14,43 @@ _DOMAINS = {
     "C0": frozenset({"paper", "plot", "table", "prose"}),
     "C1": frozenset({"dashboard", "observer", "campaign_policy"}),
     "C2": frozenset({"batch_wiring", "resource_topology", "teardown_adapter"}),
-    "C3": frozenset({"model", "benchmark", "task_data", "packet", "assignment", "runtime_image", "runtime_code"}),
-    "C4": frozenset({"eligible_roster", "sample_size", "estimand", "effect_target", "allocation", "stopping_rule", "power_rng"}),
+    "C3": frozenset(
+        {
+            "model",
+            "benchmark",
+            "task_data",
+            "packet",
+            "assignment",
+            "runtime_image",
+            "runtime_code",
+        }
+    ),
+    "C4": frozenset(
+        {
+            "eligible_roster",
+            "sample_size",
+            "estimand",
+            "effect_target",
+            "allocation",
+            "stopping_rule",
+            "power_rng",
+        }
+    ),
 }
 _REGENERATE = {
     "C0": ("analysis", "paper"),
     "C1": ("campaign_control",),
     "C2": ("provider_binding", "package", "authorization"),
     "C3": ("input_seals", "images", "sboms", "run_spec", "package", "authorization"),
-    "C4": ("power", "input_seals", "images", "sboms", "run_spec", "package", "authorization"),
+    "C4": (
+        "power",
+        "input_seals",
+        "images",
+        "sboms",
+        "run_spec",
+        "package",
+        "authorization",
+    ),
 }
 
 
@@ -43,7 +71,10 @@ def classify_change(domains: Iterable[str]) -> ImpactDecision:
     unknown = values - known
     if unknown:
         raise ImpactError(f"unknown change domains: {sorted(unknown)}")
-    level = max((name for name, members in _DOMAINS.items() if values & members), key=lambda name: int(name[1:]))
+    level = max(
+        (name for name, members in _DOMAINS.items() if values & members),
+        key=lambda name: int(name[1:]),
+    )
     return ImpactDecision(
         level=level,
         changed_domains=tuple(sorted(values)),

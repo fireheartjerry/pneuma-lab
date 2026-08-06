@@ -19,9 +19,33 @@ _ALLOWED: dict[str | None, frozenset[str]] = {
     "prepared": frozenset({"reserved", "teardown_started"}),
     "reserved": frozenset({"submitting", "teardown_started"}),
     "submitting": frozenset({"submitted", "observation_error", "teardown_started"}),
-    "submitted": frozenset({"observing", "observation_error", "workload_terminal", "workload_failed", "teardown_started"}),
-    "observing": frozenset({"observing", "observation_error", "workload_terminal", "workload_failed", "teardown_started"}),
-    "observation_error": frozenset({"observing", "observation_error", "workload_terminal", "workload_failed", "teardown_started"}),
+    "submitted": frozenset(
+        {
+            "observing",
+            "observation_error",
+            "workload_terminal",
+            "workload_failed",
+            "teardown_started",
+        }
+    ),
+    "observing": frozenset(
+        {
+            "observing",
+            "observation_error",
+            "workload_terminal",
+            "workload_failed",
+            "teardown_started",
+        }
+    ),
+    "observation_error": frozenset(
+        {
+            "observing",
+            "observation_error",
+            "workload_terminal",
+            "workload_failed",
+            "teardown_started",
+        }
+    ),
     "workload_terminal": frozenset({"outputs_sealed", "teardown_started"}),
     "workload_failed": frozenset({"reviewed", "teardown_started"}),
     "outputs_sealed": frozenset({"analysed", "teardown_started"}),
@@ -90,7 +114,9 @@ class CampaignStateStore:
                     receipt_sha256=body["receipt_sha256"],
                 )
             if event["phase"] == "decided":
-                decision_code = cast(Mapping[str, Any], event["payload"])["decision_code"]
+                decision_code = cast(Mapping[str, Any], event["payload"])[
+                    "decision_code"
+                ]
         return CampaignSnapshot(
             campaign_id=self.campaign_id,
             version_id=self.version_id,
@@ -116,7 +142,9 @@ class CampaignStateStore:
         candidate = SubmissionIdentity(parent_job_id, child_job_ids, receipt_sha256)
         if current.submission is not None:
             if current.submission != candidate:
-                raise StateError("submission identity differs from immutable first submission")
+                raise StateError(
+                    "submission identity differs from immutable first submission"
+                )
             return current.submission
         if current.phase != "submitting":
             raise StateError("submission may only be recorded from submitting")
@@ -134,17 +162,23 @@ class CampaignStateStore:
         events = cast(list[dict[str, Any]], self._document["events"])
         previous_phase = cast(str | None, events[-1]["phase"] if events else None)
         if phase not in _ALLOWED.get(previous_phase, frozenset()):
-            raise StateError(f"illegal campaign transition {previous_phase!r} -> {phase!r}")
+            raise StateError(
+                f"illegal campaign transition {previous_phase!r} -> {phase!r}"
+            )
         previous = cast(str, events[-1]["event_sha256"] if events else ZERO_SHA256)
         event: dict[str, Any] = {
             "sequence": len(events) + 1,
             "phase": phase,
-            "payload": json.loads(json.dumps(payload, ensure_ascii=False, allow_nan=False)),
+            "payload": json.loads(
+                json.dumps(payload, ensure_ascii=False, allow_nan=False)
+            ),
             "previous_event_sha256": previous,
         }
         event["event_sha256"] = digest_record(event)
         events.append(event)
-        state_body = {key: value for key, value in self._document.items() if key != "state_sha256"}
+        state_body = {
+            key: value for key, value in self._document.items() if key != "state_sha256"
+        }
         self._document["state_sha256"] = digest_record(state_body)
         self._write()
         return self.snapshot()
@@ -154,12 +188,25 @@ class CampaignStateStore:
             value = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise StateError("campaign state is unreadable") from exc
-        required = {"record_kind", "schema_version", "campaign_id", "version_id", "events", "state_sha256"}
+        required = {
+            "record_kind",
+            "schema_version",
+            "campaign_id",
+            "version_id",
+            "events",
+            "state_sha256",
+        }
         if not isinstance(value, dict) or set(value) != required:
             raise StateError("campaign state fields differ")
-        if value["record_kind"] != "rapid_campaign_state" or value["schema_version"] != "0.1.0":
+        if (
+            value["record_kind"] != "rapid_campaign_state"
+            or value["schema_version"] != "0.1.0"
+        ):
             raise StateError("campaign state kind/version differs")
-        if value["campaign_id"] != self.campaign_id or value["version_id"] != self.version_id:
+        if (
+            value["campaign_id"] != self.campaign_id
+            or value["version_id"] != self.version_id
+        ):
             raise StateError("campaign state identity differs")
         events = value["events"]
         if not isinstance(events, list) or not events:
@@ -179,12 +226,16 @@ class CampaignStateStore:
                 raise StateError("campaign event chain differs")
             if event["phase"] not in _ALLOWED.get(previous_phase, frozenset()):
                 raise StateError("campaign event transition differs")
-            expected = digest_record({key: item for key, item in event.items() if key != "event_sha256"})
+            expected = digest_record(
+                {key: item for key, item in event.items() if key != "event_sha256"}
+            )
             if event["event_sha256"] != expected:
                 raise StateError("campaign event digest differs")
             previous = event["event_sha256"]
             previous_phase = event["phase"]
-        expected_state = digest_record({key: item for key, item in value.items() if key != "state_sha256"})
+        expected_state = digest_record(
+            {key: item for key, item in value.items() if key != "state_sha256"}
+        )
         if value["state_sha256"] != expected_state:
             raise StateError("campaign state digest differs")
         return value

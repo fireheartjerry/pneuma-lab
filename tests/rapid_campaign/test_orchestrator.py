@@ -72,7 +72,9 @@ class FakeReview:
 
 def make(tmp_path, execution: FakeExecution) -> CampaignOrchestrator:
     return CampaignOrchestrator(
-        store=CampaignStateStore(tmp_path / "state.json", campaign_id="campaign", version_id="r2"),
+        store=CampaignStateStore(
+            tmp_path / "state.json", campaign_id="campaign", version_id="r2"
+        ),
         ledger=SpendLedger(ceiling_microusd=7_500_000_000),
         version=version(),
         projected_microusd=5_100_000_000,

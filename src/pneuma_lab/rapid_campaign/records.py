@@ -80,9 +80,9 @@ class CampaignManifest:
             raise RecordError("region is invalid")
         _positive_int(self.ceiling_microusd, "ceiling_microusd")
         _identifier(self.root_version_id, "root_version_id")
-        if not self.allowed_resource_classes or len(set(self.allowed_resource_classes)) != len(
-            self.allowed_resource_classes
-        ):
+        if not self.allowed_resource_classes or len(
+            set(self.allowed_resource_classes)
+        ) != len(self.allowed_resource_classes):
             raise RecordError("allowed_resource_classes must be unique and non-empty")
         for value in self.allowed_resource_classes:
             _identifier(value, "allowed_resource_class")
@@ -118,10 +118,15 @@ class CampaignManifest:
             "impact_policy_version",
         }
         _require_exact(payload, fields, "campaign manifest")
-        if payload["record_kind"] != "rapid_campaign_manifest" or payload["schema_version"] != SCHEMA_VERSION:
+        if (
+            payload["record_kind"] != "rapid_campaign_manifest"
+            or payload["schema_version"] != SCHEMA_VERSION
+        ):
             raise RecordError("campaign manifest kind/version differs")
         resources = payload["allowed_resource_classes"]
-        if not isinstance(resources, list) or not all(type(item) is str for item in resources):
+        if not isinstance(resources, list) or not all(
+            type(item) is str for item in resources
+        ):
             raise RecordError("allowed_resource_classes must be a list of strings")
         return cls(
             campaign_id=payload["campaign_id"],
@@ -156,7 +161,11 @@ class ExperimentVersion:
             _identifier(self.parent_version_id, "parent_version_id")
             if self.parent_version_id == self.version_id:
                 raise RecordError("experiment version cannot parent itself")
-        if self.hypothesis_status not in {"confirmatory", "exploratory", "operational_repair"}:
+        if self.hypothesis_status not in {
+            "confirmatory",
+            "exploratory",
+            "operational_repair",
+        }:
             raise RecordError("hypothesis_status is invalid")
         _identifier(self.action_id, "action_id")
         for field in (
@@ -173,7 +182,9 @@ class ExperimentVersion:
             raise RecordError("dependencies must not be empty")
         normalized: dict[str, str] = {}
         for key, value in self.dependencies.items():
-            normalized[_identifier(key, "dependency name")] = _sha(value, f"dependency {key}")
+            normalized[_identifier(key, "dependency name")] = _sha(
+                value, f"dependency {key}"
+            )
         object.__setattr__(self, "dependencies", dict(sorted(normalized.items())))
 
     def to_mapping(self) -> dict[str, object]:
@@ -213,7 +224,10 @@ class ExperimentVersion:
             "dependencies",
         }
         _require_exact(payload, fields, "experiment version")
-        if payload["record_kind"] != "rapid_campaign_experiment_version" or payload["schema_version"] != SCHEMA_VERSION:
+        if (
+            payload["record_kind"] != "rapid_campaign_experiment_version"
+            or payload["schema_version"] != SCHEMA_VERSION
+        ):
             raise RecordError("experiment version kind/version differs")
         dependencies = payload["dependencies"]
         if not isinstance(dependencies, dict):

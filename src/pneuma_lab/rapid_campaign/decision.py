@@ -23,9 +23,16 @@ class Evaluation:
     def __post_init__(self) -> None:
         if self.validity not in {"valid", "invalid", "inconclusive"}:
             raise DecisionError("evaluation validity is invalid")
-        if type(self.informative) is not bool or self.favorable not in {True, False, None}:
+        if type(self.informative) is not bool or self.favorable not in {
+            True,
+            False,
+            None,
+        }:
             raise DecisionError("evaluation booleans are invalid")
-        if type(self.operational_failure) is not bool or type(self.evidence_complete) is not bool:
+        if (
+            type(self.operational_failure) is not bool
+            or type(self.evidence_complete) is not bool
+        ):
             raise DecisionError("evaluation flags are invalid")
         if not all(type(item) is str and item for item in self.correctable_findings):
             raise DecisionError("correctable findings must be non-empty strings")
@@ -52,7 +59,9 @@ class Evaluation:
             "correctable_findings",
             "new_exploratory_hypothesis",
         }
-        if set(value) != expected or not isinstance(value["correctable_findings"], list):
+        if set(value) != expected or not isinstance(
+            value["correctable_findings"], list
+        ):
             raise DecisionError("evaluation fields differ")
         return cls(
             validity=value["validity"],

@@ -42,11 +42,15 @@ def _infrastructure_failure(slot: Mapping[str, Any]) -> bool:
     return "infrastructure" in reason or "provider" in reason
 
 
-def rows_from_output_index(index_path: Path, *, power_root: Path) -> tuple[AnalysisRow, ...]:
+def rows_from_output_index(
+    index_path: Path, *, power_root: Path
+) -> tuple[AnalysisRow, ...]:
     index = json.loads(index_path.read_text(encoding="utf-8"))
     if index.get("record_kind") != "rapid_campaign_sealed_output_index":
         raise ValueError("official analysis requires the sealed output index")
-    roster = json.loads((power_root / "sources" / "c120-roster.json").read_text(encoding="utf-8"))
+    roster = json.loads(
+        (power_root / "sources" / "c120-roster.json").read_text(encoding="utf-8")
+    )
     roster_rows = {row["task_id"]: row for row in roster["tasks"]}
     results: dict[str, Mapping[str, Any]] = {}
     for item in index.get("objects", []):
@@ -65,7 +69,9 @@ def rows_from_output_index(index_path: Path, *, power_root: Path) -> tuple[Analy
     if set(results) != set(roster_rows):
         missing = set(roster_rows) - set(results)
         extra = set(results) - set(roster_rows)
-        raise ValueError(f"official task-result coverage differs: missing={len(missing)} extra={len(extra)}")
+        raise ValueError(
+            f"official task-result coverage differs: missing={len(missing)} extra={len(extra)}"
+        )
     rows: list[AnalysisRow] = []
     for task_id in sorted(results, key=lambda value: value.encode("utf-8")):
         result = results[task_id]
@@ -104,7 +110,9 @@ def rows_from_output_index(index_path: Path, *, power_root: Path) -> tuple[Analy
                 real_infrastructure_failure=_infrastructure_failure(by_arm["REAL"]),
                 sham_infrastructure_failure=_infrastructure_failure(by_arm["SHAM"]),
                 none_infrastructure_failure=_infrastructure_failure(by_arm["NONE"]),
-                resample_infrastructure_failure=_infrastructure_failure(by_arm["RESAMPLE"]),
+                resample_infrastructure_failure=_infrastructure_failure(
+                    by_arm["RESAMPLE"]
+                ),
                 pipeline_valid=not invalid_codes,
                 invalid_codes=tuple(invalid_codes),
             )
@@ -140,7 +148,9 @@ class OfficialRegisteredAnalysis:
         encoded = canonical_bytes(payload)
         self.destination.parent.mkdir(parents=True, exist_ok=True)
         self.destination.write_bytes(encoded)
-        return AnalysisArtifact(hashlib.sha256(encoded).hexdigest(), str(self.destination))
+        return AnalysisArtifact(
+            hashlib.sha256(encoded).hexdigest(), str(self.destination)
+        )
 
 
 @dataclass
