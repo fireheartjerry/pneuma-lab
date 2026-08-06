@@ -137,3 +137,28 @@ def test_rejects_tampered_bound_artifact(tmp_path: Path) -> None:
     (package / "sealed/task-block-plan.json").write_bytes(b"{}\n")
     with pytest.raises(CloudManifestError, match="bytes differ"):
         verify_prelaunch(result, package_root=package)
+
+
+def test_accepts_canonical_scientific_power_writer_bytes(tmp_path: Path) -> None:
+    package, secrets, power, amendment = _fixture(tmp_path)
+    value = json.loads(power.read_text(encoding="utf-8"))
+    power.write_text(
+        json.dumps(
+            value,
+            sort_keys=True,
+            indent=4,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="",
+    )
+    result = seal_prelaunch(
+        package_root=package,
+        secret_root=secrets,
+        power_report_path=power,
+        protocol_amendment_path=amendment,
+        code_commit="a" * 40,
+    )
+    assert verify_prelaunch(result, package_root=package)["selected_tier"] == 120

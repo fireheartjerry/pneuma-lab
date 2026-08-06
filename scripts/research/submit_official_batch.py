@@ -12,8 +12,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import tempfile
 import time
 from typing import Any
+
+from pneuma_lab.cloud.production_run import ProductionRunSpec
+from pneuma_lab.cloud.production_runtime import _extract_package
 
 
 REGION = "us-east-1"
@@ -37,6 +41,9 @@ IMAGE_RE = re.compile(
 )
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 ACTION_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
+CONTROLLER_MEMORY_MIB = 2_000
+MODEL_SERVER_MEMORY_MIB = 46_000
+BENCHMARK_WORKER_MEMORY_MIB = 12_000
 
 
 def _canonical(value: object) -> bytes:
@@ -67,6 +74,125 @@ def _load_images(path: Path) -> dict[str, str]:
     if any(IMAGE_RE.fullmatch(image) is None for image in result.values()):
         raise ValueError("image set contains a mutable or foreign image reference")
     return result
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _tags(value: dict[str, Any]) -> dict[str, str]:
+    return {
+        str(row["Key"]): str(row["Value"])
+        for row in value.get("Tags", [])
+        if isinstance(row, dict) and "Key" in row and "Value" in row
+    }
+
+
+def _require_owned(value: dict[str, Any], action_id: str, label: str) -> None:
+    if _tags(value).get("ActionId") != action_id:
+        raise RuntimeError(f"existing {label} is not owned by this action")
+
+
+def _bound_json(root: Path, binding: object, label: str) -> dict[str, object]:
+    if not isinstance(binding, dict):
+        raise ValueError(f"{label} binding is missing")
+    relative = binding.get("relative_path")
+    digest = binding.get("sha256")
+    byte_count = binding.get("byte_count")
+    if not isinstance(relative, str) or not isinstance(digest, str):
+        raise ValueError(f"{label} binding is malformed")
+    path = (root / relative).resolve()
+    if root.resolve() not in path.parents or not path.is_file():
+        raise ValueError(f"{label} path escapes or is absent")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != digest or len(raw) != byte_count:
+        raise ValueError(f"{label} bytes differ from their binding")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} is not an object")
+    return value
+
+
+def _verify_authorized_package(
+    *,
+    action_id: str,
+    package: Path,
+    package_sha256: str,
+    run_spec_sha256: str,
+    images: dict[str, str],
+) -> dict[str, object]:
+    """Verify every launch-critical binding before the first AWS mutation."""
+
+    if _sha256(package) != package_sha256:
+        raise ValueError("local package bytes differ from the authorized digest")
+    with tempfile.TemporaryDirectory(prefix="pneuma-official-submit-") as temporary:
+        root = Path(temporary).resolve()
+        _extract_package(package, root)
+        package_record = json.loads((root / "official-package.json").read_text("utf-8"))
+        if (
+            not isinstance(package_record, dict)
+            or package_record.get("record_kind") != "cloud_official_final_package"
+            or package_record.get("status") != "AUTHORIZED_READY_TO_SUBMIT"
+            or package_record.get("action_id") != action_id
+        ):
+            raise ValueError("official package is not authorized for this action")
+        run_binding = package_record.get("run_spec_ref")
+        run_value = _bound_json(root, run_binding, "run spec")
+        if not isinstance(run_binding, dict) or run_binding.get("sha256") != run_spec_sha256:
+            raise ValueError("run-spec argument differs from the package binding")
+        spec = ProductionRunSpec.from_mapping(run_value)
+        if spec.digest != run_spec_sha256 or spec.value.get("action_id") != action_id:
+            raise ValueError("run spec is not bound to the requested action")
+        spec.verify_official_authorization(run_root=root)
+        launch = _bound_json(root, package_record.get("launch_plan_ref"), "launch plan")
+        required_launch = {
+            "action_id": action_id,
+            "region": REGION,
+            "array_size": 2,
+            "instance_type": "g6e.2xlarge",
+            "max_spot_vcpus": 16,
+            "attempts": 1,
+            "max_duration_seconds": 604_800,
+            "max_usd": 5100.0,
+            "container_resources": {
+                "controller": {"vcpus": 1, "memory_mib": 2_000, "gpus": 0},
+                "model-server": {"vcpus": 1, "memory_mib": 46_000, "gpus": 1},
+                "benchmark-worker": {"vcpus": 6, "memory_mib": 12_000, "gpus": 0},
+            },
+        }
+        for key, expected in required_launch.items():
+            if launch.get(key) != expected:
+                raise ValueError(f"launch plan {key} differs from the registered surface")
+        if launch.get("submission_source_sha256") != _sha256(Path(__file__).resolve()):
+            raise ValueError("launch plan is not bound to this submission source")
+        cleanup_source = Path(__file__).resolve().with_name("cleanup_official_batch.py")
+        if launch.get("cleanup_source_sha256") != _sha256(cleanup_source):
+            raise ValueError("launch plan is not bound to the teardown source")
+        planned_images = {
+            str(row.get("role")): str(row.get("image_digest"))
+            for row in launch.get("images", [])
+            if isinstance(row, dict)
+        }
+        supplied_images = {
+            role: image.rsplit("@", 1)[1] for role, image in images.items()
+        }
+        if planned_images != supplied_images:
+            raise ValueError("image set differs from the authorized launch plan")
+        authorization = _bound_json(
+            root, package_record.get("authorization_ref"), "authorization"
+        )
+        if authorization.get("action_id") != action_id:
+            raise ValueError("authorization action differs from the launch action")
+        return {
+            "official_package_sha256": package_sha256,
+            "run_spec_sha256": run_spec_sha256,
+            "launch_plan_sha256": hashlib.sha256(
+                (root / str(package_record["launch_plan_ref"]["relative_path"])).read_bytes()
+            ).hexdigest(),
+            "authorization_sha256": hashlib.sha256(
+                (root / str(package_record["authorization_ref"]["relative_path"])).read_bytes()
+            ).hexdigest(),
+        }
 
 
 def _wait_compute(batch: Any, name: str, *, deadline: float) -> str:
@@ -155,6 +281,7 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
             ]
         ).get("Subnets", [])
         if matches:
+            _require_owned(matches[0], action_id, "official public subnet")
             subnet_id = str(matches[0]["SubnetId"])
             if matches[0].get("AvailabilityZone") != az:
                 raise RuntimeError("official public subnet CIDR is in the wrong AZ")
@@ -212,6 +339,7 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
         ]
     ).get("SecurityGroups", [])
     if groups:
+        _require_owned(groups[0], action_id, "official worker security group")
         group_id = str(groups[0]["GroupId"])
     else:
         group_id = str(
@@ -237,6 +365,7 @@ def _ensure_launch_template(ec2: Any, action_id: str, tags: dict[str, str]) -> t
         Filters=[{"Name": "launch-template-name", "Values": [name]}]
     ).get("LaunchTemplates", [])
     if templates:
+        _require_owned(templates[0], action_id, "official worker launch template")
         template_id = str(templates[0]["LaunchTemplateId"])
         version = str(templates[0]["LatestVersionNumber"])
         return template_id, version
@@ -349,6 +478,84 @@ def _container(
     }
 
 
+def _official_containers(
+    *,
+    images: dict[str, str],
+    package_uri: str,
+    package_sha256: str,
+    run_spec_sha256: str,
+    controller_environment: list[dict[str, str]],
+    common_environment: list[dict[str, str]],
+    benchmark_environment: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    """Return the exact registered 8-vCPU/60,000-MiB/one-GPU task surface."""
+
+    return [
+        _container(
+            name="controller",
+            image=images["controller"],
+            command=[
+                "--protocol",
+                "stage",
+                "--package-s3-uri",
+                package_uri,
+                "--package-sha256",
+                package_sha256,
+                "--run-root",
+                "/run/pneuma",
+            ],
+            vcpus=1,
+            memory=CONTROLLER_MEMORY_MIB,
+            essential=False,
+            environment=controller_environment,
+            depends_on=[],
+        ),
+        _container(
+            name="model-server",
+            image=images["model-server"],
+            command=[
+                "--protocol",
+                "production",
+                "--run-spec",
+                "/run/pneuma/run-spec.json",
+                "--run-spec-sha256",
+                run_spec_sha256,
+                "--run-root",
+                "/run/pneuma",
+            ],
+            vcpus=1,
+            memory=MODEL_SERVER_MEMORY_MIB,
+            essential=False,
+            environment=common_environment,
+            depends_on=[{"containerName": "controller", "condition": "SUCCESS"}],
+            gpu=True,
+        ),
+        _container(
+            name="benchmark-worker",
+            image=images["benchmark-worker"],
+            command=[
+                "--protocol",
+                "production",
+                "--run-spec",
+                "/run/pneuma/run-spec.json",
+                "--run-spec-sha256",
+                run_spec_sha256,
+                "--run-root",
+                "/run/pneuma",
+            ],
+            vcpus=6,
+            memory=BENCHMARK_WORKER_MEMORY_MIB,
+            essential=True,
+            environment=benchmark_environment,
+            depends_on=[
+                {"containerName": "controller", "condition": "SUCCESS"},
+                {"containerName": "model-server", "condition": "START"},
+            ],
+            privileged=True,
+        ),
+    ]
+
+
 def submit(
     *,
     action_id: str,
@@ -365,9 +572,14 @@ def submit(
         run_spec_sha256
     ) is None:
         raise ValueError("invalid package/run-spec digest")
-    if hashlib.sha256(package.read_bytes()).hexdigest() != package_sha256:
-        raise ValueError("local package bytes differ from the authorized digest")
     images = _load_images(image_set)
+    preflight = _verify_authorized_package(
+        action_id=action_id,
+        package=package,
+        package_sha256=package_sha256,
+        run_spec_sha256=run_spec_sha256,
+        images=images,
+    )
     s3 = boto3.client("s3", region_name=REGION)
     batch = boto3.client("batch", region_name=REGION)
     ec2 = boto3.client("ec2", region_name=REGION)
@@ -483,70 +695,15 @@ def submit(
         *common_environment,
         {"name": "PNEUMA_BENCHMARK_WORKER_IMAGE_REF", "value": images["benchmark-worker"]},
     ]
-    containers = [
-        _container(
-            name="controller",
-            image=images["controller"],
-            command=[
-                "--protocol",
-                "stage",
-                "--package-s3-uri",
-                package_uri,
-                "--package-sha256",
-                package_sha256,
-                "--run-root",
-                "/run/pneuma",
-            ],
-            vcpus=1,
-            memory=2000,
-            essential=False,
-            environment=controller_environment,
-            depends_on=[],
-        ),
-        _container(
-            name="model-server",
-            image=images["model-server"],
-            command=[
-                "--protocol",
-                "production",
-                "--run-spec",
-                "/run/pneuma/run-spec.json",
-                "--run-spec-sha256",
-                run_spec_sha256,
-                "--run-root",
-                "/run/pneuma",
-            ],
-            vcpus=1,
-            memory=20000,
-            essential=False,
-            environment=common_environment,
-            depends_on=[{"containerName": "controller", "condition": "SUCCESS"}],
-            gpu=True,
-        ),
-        _container(
-            name="benchmark-worker",
-            image=images["benchmark-worker"],
-            command=[
-                "--protocol",
-                "production",
-                "--run-spec",
-                "/run/pneuma/run-spec.json",
-                "--run-spec-sha256",
-                run_spec_sha256,
-                "--run-root",
-                "/run/pneuma",
-            ],
-            vcpus=6,
-            memory=4000,
-            essential=True,
-            environment=benchmark_environment,
-            depends_on=[
-                {"containerName": "controller", "condition": "SUCCESS"},
-                {"containerName": "model-server", "condition": "START"},
-            ],
-            privileged=True,
-        ),
-    ]
+    containers = _official_containers(
+        images=images,
+        package_uri=package_uri,
+        package_sha256=package_sha256,
+        run_spec_sha256=run_spec_sha256,
+        controller_environment=controller_environment,
+        common_environment=common_environment,
+        benchmark_environment=benchmark_environment,
+    )
     definition = batch.register_job_definition(
         jobDefinitionName=definition_name,
         type="container",
@@ -602,6 +759,7 @@ def submit(
         "launch_template_version": launch_template_version,
         "root_volume_gib": 1000,
         "attempts": 1,
+        "preflight": preflight,
         "status": "SUBMITTED",
     }
     return receipt

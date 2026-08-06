@@ -60,6 +60,21 @@ def canonical_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _canonical_pretty_bytes(value: object) -> bytes:
+    """Return the canonical pretty JSON emitted by scientific artifact IO."""
+
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            indent=4,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def digest(value: object) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
@@ -68,7 +83,9 @@ def file_digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _load_canonical(path: Path) -> dict[str, Any]:
+def _load_canonical(
+    path: Path, *, allow_scientific_pretty_json: bool = False
+) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise CloudManifestError(f"missing regular prelaunch input: {path}")
     raw = path.read_bytes()
@@ -76,7 +93,14 @@ def _load_canonical(path: Path) -> dict[str, Any]:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CloudManifestError(f"invalid JSON prelaunch input: {path}") from exc
-    if not isinstance(value, dict) or canonical_bytes(value) != raw:
+    accepted = isinstance(value, dict) and (
+        canonical_bytes(value) == raw
+        or (
+            allow_scientific_pretty_json
+            and _canonical_pretty_bytes(value) == raw
+        )
+    )
+    if not accepted:
         raise CloudManifestError(f"prelaunch input is not canonical JSON: {path}")
     return value
 
@@ -180,7 +204,12 @@ def seal_prelaunch(
     commitments_doc = _load_canonical(commitment_path)
     analysis_doc = _load_canonical(analysis_path)
     _load_canonical(input_lock_path)
-    power_report = _load_canonical(power_report_path)
+    # Resampling-null scientific records are deliberately written as sorted,
+    # four-space canonical JSON.  The cloud contracts use sorted compact JSON.
+    # Accept the scientific writer's exact bytes only at this typed boundary.
+    power_report = _load_canonical(
+        power_report_path, allow_scientific_pretty_json=True
+    )
     _validate_power(power_report)
     if (
         file_digest(protocol_amendment_path)

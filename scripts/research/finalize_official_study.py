@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import tarfile
 from typing import Mapping
@@ -146,22 +147,37 @@ def _provider_binding() -> dict[str, object]:
 
 
 def _append_ledger_row(
-    *, action_id: str, subject_sha256: str, timestamp: str
-) -> tuple[str, str]:
-    row_id = "CL-361"
-    line = (
-        f"| {row_id} | {timestamp} | AWS | Official C120 P0/Step-4B launch `{action_id}` "
-        f"| `{subject_sha256}` | AWS KMS `alias/pneuma-approver`; exact final authorization "
-        "| ceiling USD 5,100.00 | 5,100.00 | 0.00 | authorized | One size-two Batch array, "
-        "two `g6e.2xlarge` Spot workers (16 Spot vCPUs total), one attempt, 120 SWE and "
-        "120 TAU tasks, frozen four-arm task-block plan, immutable images/package, durable "
-        "outputs, and mandatory post-run teardown. |"
-    )
+    *, action_id: str, subject_sha256: str, timestamp: str, row_id: str
+) -> tuple[str, str, str]:
+    if re.fullmatch(r"CL-[1-9][0-9]*", row_id) is None:
+        raise ValueError("ledger row ID must be CL-<positive integer>")
+    def line_for(value: str) -> str:
+        return (
+            f"| {row_id} | {value} | AWS | Official C120 P0/Step-4B launch "
+            f"`{action_id}` | `{subject_sha256}` | AWS KMS `alias/pneuma-approver`; "
+            "exact final authorization | ceiling USD 5,100.00 | 5,100.00 | 0.00 | "
+            "authorized | One size-two Batch array, two `g6e.2xlarge` Spot workers "
+            "(16 Spot vCPUs total), one attempt, 120 SWE and 120 TAU tasks, frozen "
+            "four-arm task-block plan, immutable images/package, durable outputs, and "
+            "mandatory post-run teardown. |"
+        )
+
+    line = line_for(timestamp)
     text = LEDGER.read_text(encoding="utf-8")
     prefix = f"| {row_id} |"
     matches = [item for item in text.splitlines() if item.startswith(prefix)]
-    if matches and matches != [line]:
-        raise ValueError(f"{row_id} already exists with different content")
+    if matches:
+        if len(matches) != 1:
+            raise ValueError(f"{row_id} exists more than once")
+        fields = matches[0].split("|")
+        existing_timestamp = fields[2].strip() if len(fields) > 2 else ""
+        if matches[0] != line_for(existing_timestamp):
+            raise ValueError(f"{row_id} already exists with different content")
+        return (
+            row_id,
+            hashlib.sha256(matches[0].encode("utf-8")).hexdigest(),
+            existing_timestamp,
+        )
     if not matches:
         marker = "\n## Totals\n"
         if marker not in text:
@@ -169,7 +185,7 @@ def _append_ledger_row(
         LEDGER.write_text(
             text.replace(marker, f"\n{line}\n{marker}", 1), encoding="utf-8"
         )
-    return row_id, hashlib.sha256(line.encode("utf-8")).hexdigest()
+    return row_id, hashlib.sha256(line.encode("utf-8")).hexdigest(), timestamp
 
 
 def _signed_authorization(
@@ -262,7 +278,11 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     shutil.copy2(args.power_report, output / "power-final.json")
     shutil.copy2(args.image_set, output / "images.json")
     shutil.copytree(args.image_set.parent / "images", output / "image-evidence")
-    shutil.copy2(KEY_REGISTRY, output / "governance/approver-key-registry.json")
+    (output / "governance").mkdir()
+    _write(
+        output / "governance/approver-key-registry.json",
+        json.loads(KEY_REGISTRY.read_text(encoding="utf-8")),
+    )
 
     provider_path = output / "inputs/provider-binding.json"
     _write(provider_path, _provider_binding())
@@ -284,6 +304,14 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "submission_source_sha256": _sha(
             ROOT / "scripts/research/submit_official_batch.py"
         ),
+        "cleanup_source_sha256": _sha(
+            ROOT / "scripts/research/cleanup_official_batch.py"
+        ),
+        "container_resources": {
+            "controller": {"vcpus": 1, "memory_mib": 2000, "gpus": 0},
+            "model-server": {"vcpus": 1, "memory_mib": 46000, "gpus": 1},
+            "benchmark-worker": {"vcpus": 6, "memory_mib": 12000, "gpus": 0},
+        },
     }
     launch_path = output / "launch-plan.json"
     _write(launch_path, launch_plan)
@@ -558,10 +586,14 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     subject_sha256 = official_authorization_subject_digest(spec)
     now = datetime.now(timezone.utc).replace(microsecond=0)
     granted = now.isoformat().replace("+00:00", "Z")
-    expires = (now + timedelta(days=21)).isoformat().replace("+00:00", "Z")
-    row_id, row_digest = _append_ledger_row(
-        action_id=args.action_id, subject_sha256=subject_sha256, timestamp=granted
+    row_id, row_digest, granted = _append_ledger_row(
+        action_id=args.action_id,
+        subject_sha256=subject_sha256,
+        timestamp=granted,
+        row_id=args.ledger_row_id,
     )
+    granted_time = datetime.fromisoformat(granted.replace("Z", "+00:00"))
+    expires = (granted_time + timedelta(days=21)).isoformat().replace("+00:00", "Z")
     shutil.copy2(LEDGER, output / "governance/cloud-spend-ledger.md")
     ledger_ref = _ref(
         output,
@@ -652,6 +684,7 @@ def main() -> int:
     parser.add_argument("--secret-root", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--action-id", required=True)
+    parser.add_argument("--ledger-row-id", required=True)
     parser.add_argument("--kms-key-id", default="alias/pneuma-approver")
     args = parser.parse_args()
     print(json.dumps(finalize(args), sort_keys=True))

@@ -14,8 +14,10 @@ from pneuma_lab.cloud.production_evidence import (
     write_worker_result,
 )
 from pneuma_lab.cloud.production_run import (
+    FileBinding,
     ProductionRunSpec,
     canonical_bytes,
+    load_bound_json,
     official_authorization_subject_digest,
 )
 
@@ -34,7 +36,12 @@ def _binding(root: Path, relative: str, value: object, role: str) -> dict[str, o
     }
 
 
-def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
+def _spec(
+    root: Path,
+    *,
+    run_mode: str = "local_mock",
+    allocation_contract_id: str = "canonical-round-robin-two-worker-v1",
+) -> ProductionRunSpec:
     task_manifest = {
         "record_kind": "resampling_task_registry_v1",
         "schema_version": "1",
@@ -165,7 +172,7 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
             "instance_type": "g6e.2xlarge",
             "vcpus_per_worker": 8,
             "gpus_per_worker": 1,
-            "allocation_contract_id": "canonical-round-robin-two-worker-v1",
+            "allocation_contract_id": allocation_contract_id,
         },
         "budget": {
             "max_usd": 100.0,
@@ -196,6 +203,46 @@ def _spec(root: Path, *, run_mode: str = "local_mock") -> ProductionRunSpec:
         },
     }
     return ProductionRunSpec.from_mapping(value)
+
+
+@pytest.mark.parametrize(
+    "allocation_contract_id",
+    [
+        "canonical-round-robin-two-worker-v1",
+        "two-l40s-swe-dual-tau-subject-simulator-v1",
+    ],
+)
+def test_registered_two_worker_allocation_contracts_are_admitted(
+    tmp_path: Path, allocation_contract_id: str
+) -> None:
+    spec = _spec(tmp_path, allocation_contract_id=allocation_contract_id)
+    assert spec.value["worker_topology"]["allocation_contract_id"] == (
+        allocation_contract_id
+    )
+
+
+def test_bound_scientific_json_accepts_only_exact_pretty_canonical_bytes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "power-final.json"
+    value = {"record_kind": "resampling_power_report", "payload": {"stage": "final"}}
+    raw = (
+        json.dumps(value, sort_keys=True, indent=4, ensure_ascii=False, allow_nan=False)
+        + "\n"
+    ).encode("utf-8")
+    path.write_bytes(raw)
+    binding = FileBinding(
+        "power_report",
+        path.name,
+        hashlib.sha256(raw).hexdigest(),
+        len(raw),
+        "application/json",
+    )
+    assert load_bound_json(
+        binding, run_root=tmp_path, allow_scientific_pretty_json=True
+    ) == value
+    with pytest.raises(CloudManifestError, match="canonical JSON"):
+        load_bound_json(binding, run_root=tmp_path)
 
 
 def test_local_mock_uses_the_production_control_flow_and_is_not_science(

@@ -71,6 +71,21 @@ def canonical_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _canonical_scientific_bytes(value: object) -> bytes:
+    """Return the sorted pretty JSON bytes emitted by scientific artifact IO."""
+
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            indent=4,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def canonical_digest(value: object) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
@@ -276,7 +291,9 @@ class ProductionRunSpec:
                 "power final binding is only valid for official run mode"
             )
         report = load_bound_json(
-            self.file_binding("power_report_ref"), run_root=run_root
+            self.file_binding("power_report_ref"),
+            run_root=run_root,
+            allow_scientific_pretty_json=True,
         )
         try:
             from pneuma_lab.resampling_null.artifacts import validate_record
@@ -561,10 +578,10 @@ class ProductionRunSpec:
             raise CloudManifestError(
                 "production topology differs from the registered two-L40S plan"
             )
-        if (
-            topology.get("allocation_contract_id")
-            != "canonical-round-robin-two-worker-v1"
-        ):
+        if topology.get("allocation_contract_id") not in {
+            "canonical-round-robin-two-worker-v1",
+            "two-l40s-swe-dual-tau-subject-simulator-v1",
+        }:
             raise CloudManifestError(
                 "production topology has an unknown allocation contract"
             )
@@ -779,7 +796,12 @@ def resolve_binding(binding: FileBinding, *, run_root: Path) -> tuple[Path, byte
     return path, raw
 
 
-def load_bound_json(binding: FileBinding, *, run_root: Path) -> Mapping[str, object]:
+def load_bound_json(
+    binding: FileBinding,
+    *,
+    run_root: Path,
+    allow_scientific_pretty_json: bool = False,
+) -> Mapping[str, object]:
     path, raw = resolve_binding(binding, run_root=run_root)
     try:
         value = json.loads(raw.decode("utf-8"))
@@ -787,7 +809,10 @@ def load_bound_json(binding: FileBinding, *, run_root: Path) -> Mapping[str, obj
         raise CloudManifestError(f"bound JSON is invalid: {path}") from exc
     if not isinstance(value, Mapping):
         raise CloudManifestError(f"bound JSON must be an object: {path}")
-    if canonical_bytes(value) != raw:
+    if canonical_bytes(value) != raw and not (
+        allow_scientific_pretty_json
+        and _canonical_scientific_bytes(value) == raw
+    ):
         raise CloudManifestError(f"bound JSON must use canonical JSON bytes: {path}")
     return cast(Mapping[str, object], value)
 

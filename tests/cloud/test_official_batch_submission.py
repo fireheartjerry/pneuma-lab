@@ -32,40 +32,15 @@ def test_official_multicontainer_resources_fill_one_whole_worker() -> None:
             ("benchmark-worker", "3"),
         )
     }
-    rows = [
-        MODULE._container(
-            name="controller",
-            image=images["controller"],
-            command=["--protocol", "stage"],
-            vcpus=1,
-            memory=2000,
-            essential=False,
-            environment=[],
-            depends_on=[],
-        ),
-        MODULE._container(
-            name="model-server",
-            image=images["model-server"],
-            command=["--protocol", "production"],
-            vcpus=1,
-            memory=46000,
-            essential=False,
-            environment=[],
-            depends_on=[{"containerName": "controller", "condition": "SUCCESS"}],
-            gpu=True,
-        ),
-        MODULE._container(
-            name="benchmark-worker",
-            image=images["benchmark-worker"],
-            command=["--protocol", "production"],
-            vcpus=6,
-            memory=12000,
-            essential=True,
-            environment=[],
-            depends_on=[{"containerName": "model-server", "condition": "START"}],
-            privileged=True,
-        ),
-    ]
+    rows = MODULE._official_containers(
+        images=images,
+        package_uri="s3://example/package.tar.gz",
+        package_sha256="4" * 64,
+        run_spec_sha256="5" * 64,
+        controller_environment=[],
+        common_environment=[],
+        benchmark_environment=[],
+    )
     resources = [row["resourceRequirements"] for row in rows]
     assert sum(
         int(item["value"])
@@ -121,3 +96,10 @@ def test_package_extraction_rejects_parent_traversal(tmp_path: Path) -> None:
         handle.addfile(info, io.BytesIO(payload))
     with pytest.raises(ValueError, match="escapes"):
         _extract_package(archive, tmp_path / "run")
+
+
+def test_submit_refuses_reused_network_resource_from_another_action() -> None:
+    value = {"Tags": [{"Key": "ActionId", "Value": "action-a"}]}
+    MODULE._require_owned(value, "action-a", "test resource")
+    with pytest.raises(RuntimeError, match="not owned"):
+        MODULE._require_owned(value, "action-b", "test resource")
