@@ -76,12 +76,19 @@ def initialize_r2(
     roles = image_set.get("roles") if isinstance(image_set, dict) else None
     if not isinstance(reviewed_images, dict) or not isinstance(roles, list):
         raise WorkspaceError("image-set/final-review image bindings are invalid")
+
+    def canonical_role(value: object) -> str:
+        return str(value).replace("_", "-")
+
     observed_images = {
-        row.get("role"): row.get("image_digest")
+        canonical_role(row.get("role")): row.get("image_digest")
         for row in roles
         if isinstance(row, dict)
     }
-    if observed_images != reviewed_images:
+    canonical_reviewed_images = {
+        canonical_role(role): digest for role, digest in reviewed_images.items()
+    }
+    if observed_images != canonical_reviewed_images:
         raise WorkspaceError("image-set digests differ from final review")
     dependencies = {
         "runtime_code": bindings["runtime_source_commit"].ljust(64, "0"),

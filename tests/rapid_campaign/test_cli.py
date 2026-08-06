@@ -47,8 +47,8 @@ def test_cli_initializes_dry_runs_and_completes_simulated_loop(
                 "registered_surface": {"max_usd": 5100.0},
                 "images": {
                     "controller": "sha256:" + "a" * 64,
-                    "model-server": "sha256:" + "b" * 64,
-                    "benchmark-worker": "sha256:" + "c" * 64,
+                    "model_server": "sha256:" + "b" * 64,
+                    "benchmark_worker": "sha256:" + "c" * 64,
                 },
             }
         ),
