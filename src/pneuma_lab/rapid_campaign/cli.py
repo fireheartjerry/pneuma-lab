@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Sequence
 
 from .adapters import SimulationAnalysis, SimulationExecution, SimulationReview
+from .official_adapter import Boto3OfficialTransport, OfficialBatchAdapter
+from .official_analysis import OfficialRegisteredAnalysis, RegisteredResultReview
 from .orchestrator import CampaignOrchestrator
 from .workspace import initialize_r2, load_workspace, save_spend, verify_workspace_bindings
 
@@ -22,6 +24,7 @@ def _init(args: argparse.Namespace) -> int:
         final_review_path=Path(args.final_review),
         package_path=Path(args.package),
         image_set_path=Path(args.image_set),
+        power_root=Path(args.power_root) if args.power_root else None,
         mode=args.mode,
         projected_microusd=round(args.projected_usd * 1_000_000),
     )
@@ -70,16 +73,33 @@ def _run(args: argparse.Namespace) -> int:
     root = Path(args.root)
     _, version, config, ledger, store = load_workspace(root)
     verify_workspace_bindings(root)
-    if config["mode"] != "simulate":
-        raise RuntimeError("official adapter is not installed yet; no mutation occurred")
+    if config["mode"] == "simulate":
+        execution = SimulationExecution(root)
+        analysis = SimulationAnalysis(root)
+        review = SimulationReview()
+    else:
+        execution = OfficialBatchAdapter(
+            repo_root=Path(config["repo_root"]),
+            campaign_root=root,
+            version=version,
+            package_path=Path(config["package_path"]),
+            image_set_path=Path(config["image_set_path"]),
+            projected_microusd=config["projected_microusd"],
+            transport=Boto3OfficialTransport(),
+        )
+        analysis = OfficialRegisteredAnalysis(
+            power_root=Path(config["power_root"]),
+            destination=root / "versions" / version.version_id / "analysis" / "registered-result.json",
+        )
+        review = RegisteredResultReview()
     orchestrator = CampaignOrchestrator(
         store=store,
         ledger=ledger,
         version=version,
         projected_microusd=config["projected_microusd"],
-        execution=SimulationExecution(root),
-        analysis=SimulationAnalysis(root),
-        review=SimulationReview(),
+        execution=execution,
+        analysis=analysis,
+        review=review,
     )
     result = orchestrator.run()
     save_spend(root, ledger)
@@ -105,6 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--final-review", required=True)
     init.add_argument("--package", required=True)
     init.add_argument("--image-set", required=True)
+    init.add_argument("--power-root")
     init.add_argument("--mode", choices=("simulate", "official"), default="official")
     init.add_argument("--projected-usd", type=float, default=1_000.0)
     init.set_defaults(handler=_init)

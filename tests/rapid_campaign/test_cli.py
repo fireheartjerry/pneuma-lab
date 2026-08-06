@@ -11,7 +11,18 @@ def test_cli_initializes_dry_runs_and_completes_simulated_loop(tmp_path, capsys)
     package.write_bytes(b"package")
     package_sha = hashlib.sha256(package.read_bytes()).hexdigest()
     images = tmp_path / "images.json"
-    images.write_text("{}", encoding="utf-8")
+    images.write_text(
+        json.dumps(
+            {
+                "roles": [
+                    {"role": "controller", "image_digest": "sha256:" + "a" * 64},
+                    {"role": "model-server", "image_digest": "sha256:" + "b" * 64},
+                    {"role": "benchmark-worker", "image_digest": "sha256:" + "c" * 64},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     review = tmp_path / "review.json"
     review.write_text(
         json.dumps(
@@ -32,6 +43,11 @@ def test_cli_initializes_dry_runs_and_completes_simulated_loop(tmp_path, capsys)
                     "package_sha256": package_sha,
                 },
                 "registered_surface": {"max_usd": 5100.0},
+                "images": {
+                    "controller": "sha256:" + "a" * 64,
+                    "model-server": "sha256:" + "b" * 64,
+                    "benchmark-worker": "sha256:" + "c" * 64,
+                },
             }
         ),
         encoding="utf-8",

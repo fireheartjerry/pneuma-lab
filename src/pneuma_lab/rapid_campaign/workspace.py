@@ -47,6 +47,7 @@ def initialize_r2(
     final_review_path: Path,
     package_path: Path,
     image_set_path: Path,
+    power_root: Path | None,
     mode: str,
     projected_microusd: int,
 ) -> tuple[CampaignManifest, ExperimentVersion]:
@@ -67,6 +68,18 @@ def initialize_r2(
     if package_sha != bindings.get("package_sha256"):
         raise WorkspaceError("package bytes differ from final review")
     image_sha = _sha256(image_set_path)
+    image_set = json.loads(image_set_path.read_text(encoding="utf-8"))
+    reviewed_images = review.get("images")
+    roles = image_set.get("roles") if isinstance(image_set, dict) else None
+    if not isinstance(reviewed_images, dict) or not isinstance(roles, list):
+        raise WorkspaceError("image-set/final-review image bindings are invalid")
+    observed_images = {
+        row.get("role"): row.get("image_digest")
+        for row in roles
+        if isinstance(row, dict)
+    }
+    if observed_images != reviewed_images:
+        raise WorkspaceError("image-set digests differ from final review")
     dependencies = {
         "runtime_code": bindings["runtime_source_commit"].ljust(64, "0"),
         "launch_surface": bindings["launch_surface_commit"].ljust(64, "0"),
@@ -106,6 +119,7 @@ def initialize_r2(
         "final_review_sha256": _sha256(final_review_path),
         "package_path": str(package_path.resolve()),
         "image_set_path": str(image_set_path.resolve()),
+        "power_root": str(power_root.resolve()) if power_root is not None else None,
         "projected_microusd": projected_microusd,
         "repo_root": str(Path.cwd().resolve()),
     }
@@ -153,6 +167,12 @@ def verify_workspace_bindings(root: Path) -> dict[str, object]:
         raise WorkspaceError("current image-set bytes differ")
     if _sha256(review_path) != config["final_review_sha256"]:
         raise WorkspaceError("current final-review bytes differ")
+    if config["mode"] == "official":
+        if not config.get("power_root"):
+            raise WorkspaceError("official campaign lacks the frozen power root")
+        power_final = Path(config["power_root"]) / "c120-final.json"
+        if _sha256(power_final) != version.power_sha256:
+            raise WorkspaceError("frozen power-final bytes differ")
     return {
         "campaign_id": manifest.campaign_id,
         "version_id": version.version_id,

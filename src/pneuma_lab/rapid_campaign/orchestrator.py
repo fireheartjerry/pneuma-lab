@@ -132,7 +132,17 @@ class CampaignOrchestrator:
                 self.store.append("workload_failed", {"evidence_sha256": observation.evidence_sha256})
         elif phase == "workload_terminal":
             output = self.execution.seal_outputs(self._submission(snapshot))
-            self.store.append("outputs_sealed", {"sha256": output.sha256, "locator": output.locator})
+            observed = self.execution.teardown(self._submission(snapshot))
+            self.ledger.observe(self.reservation_id, observed_microusd=observed)
+            self.store.append(
+                "outputs_sealed",
+                {
+                    "sha256": output.sha256,
+                    "locator": output.locator,
+                    "provider_teardown_complete": True,
+                    "observed_microusd": observed,
+                },
+            )
         elif phase == "outputs_sealed":
             payload = snapshot.events[-1]["payload"]
             output = OutputArtifact(payload["sha256"], payload["locator"])
