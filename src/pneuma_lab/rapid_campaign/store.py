@@ -53,7 +53,7 @@ _ALLOWED: dict[str | None, frozenset[str]] = {
     "reviewed": frozenset({"decided", "teardown_started"}),
     "decided": frozenset({"teardown_started"}),
     "teardown_started": frozenset({"teardown_complete", "teardown_failed"}),
-    "teardown_failed": frozenset({"teardown_started"}),
+    "teardown_failed": frozenset({"teardown_complete", "teardown_failed"}),
     "teardown_complete": frozenset(),
 }
 

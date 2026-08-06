@@ -53,3 +53,16 @@ def test_submission_identity_is_immutable_and_idempotent(tmp_path) -> None:
         store.record_submission(
             parent_job_id="other", child_job_ids=("a", "b"), receipt_sha256="f" * 64
         )
+
+
+def test_teardown_failure_can_retry_to_completion(tmp_path) -> None:
+    store = CampaignStateStore(
+        tmp_path / "state.json", campaign_id="campaign", version_id="r2"
+    )
+    store.append("classified", {"impact": "C0"})
+    store.append("prepared", {})
+    store.append("teardown_started", {})
+    store.append("teardown_failed", {})
+    store.append("teardown_failed", {})
+    store.append("teardown_complete", {"observed_microusd": 0})
+    assert store.snapshot().phase == "teardown_complete"
