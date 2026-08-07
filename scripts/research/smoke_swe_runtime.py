@@ -72,9 +72,7 @@ def _select(
         for task in sorted(tasks.values(), key=lambda row: str(row["task_id"])):
             by_language.setdefault(str(task["language"]).lower(), []).append(task)
         return [
-            task
-            for key in sorted(by_language)
-            for task in by_language[key][:count]
+            task for key in sorted(by_language) for task in by_language[key][:count]
         ]
     pool = [
         task
@@ -87,9 +85,15 @@ def _select(
 
 
 class _Timed:
-    """Record per-stage wall clock so slow Docker calls are visible."""
+    """Record per-stage wall clock so slow Docker calls are visible.
 
-    def __init__(self) -> None:
+    Stage lines carry their task ID because with --workers above one the
+    output of several tasks interleaves, and an unattributed duration cannot
+    be read back to the task that produced it.
+    """
+
+    def __init__(self, label: str = "") -> None:
+        self.label = label
         self.stages: list[dict[str, Any]] = []
 
     def run(self, name: str, action: Any) -> Any:
@@ -108,7 +112,8 @@ class _Timed:
                 }
             )
             print(
-                f"  {name:<18} {elapsed:8.1f}s  FAILED  {type(exc).__name__}",
+                f"  {self.label:<44} {name:<14} {elapsed:8.1f}s  "
+                f"FAILED  {type(exc).__name__}",
                 flush=True,
             )
             raise
@@ -123,7 +128,10 @@ class _Timed:
             }
         )
         marker = "  <-- would have killed r8" if legacy else ""
-        print(f"  {name:<18} {elapsed:8.1f}s  OK{marker}", flush=True)
+        print(
+            f"  {self.label:<44} {name:<14} {elapsed:8.1f}s  OK{marker}",
+            flush=True,
+        )
         return result
 
 
@@ -131,8 +139,8 @@ def _smoke_one(runtime: Any, task: dict[str, Any], *, grade: bool) -> dict[str, 
     from pneuma_lab.cloud.official_experiment import DockerSweRuntime
 
     task_id = str(task["task_id"])
-    print(f"\n{task_id}  ({task['language']})")
-    timed = _Timed()
+    print(f"\n{task_id}  ({task['language']})", flush=True)
+    timed = _Timed(task_id)
     container = None
     snapshot = None
     result: dict[str, Any] = {"task_id": task_id, "language": task["language"]}
