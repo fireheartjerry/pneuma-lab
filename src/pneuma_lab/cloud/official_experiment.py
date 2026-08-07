@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import concurrent.futures
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
@@ -33,6 +34,8 @@ from .production_run import ProductionRunSpec, canonical_bytes, canonical_digest
 
 _SWE_TOOL_OUTPUT_CHARS = 12_000
 _SWE_PREFIX_WORKERS = 2
+_TELEMETRY_HEARTBEAT_SECONDS = 15.0
+_TELEMETRY_LOCK = threading.Lock()
 ARMS = frozenset({"REAL", "SHAM", "NONE", "RESAMPLE"})
 SUBJECT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
 SIMULATOR_MODEL = "Qwen/Qwen3.5-9B"
@@ -42,6 +45,58 @@ SWE_BRANCH_TOKEN_CAP = 32_768
 SWE_BRANCH_SECONDS = 3_600
 TAU_BRANCH_STEPS = 16
 TAU_BRANCH_SECONDS = 1_800
+
+
+def _task_event(task_id: str, phase: str, **details: object) -> None:
+    row = {
+        "record_kind": "cloud_official_task_telemetry",
+        "task_id": task_id,
+        "phase": phase,
+        "observed_unix_ms": time.time_ns() // 1_000_000,
+        **details,
+    }
+    with _TELEMETRY_LOCK:
+        print(json.dumps(row, sort_keys=True, separators=(",", ":")), flush=True)
+
+
+@contextmanager
+def _task_span(task_id: str, phase: str, **details: object):
+    started = time.monotonic()
+    stopped = threading.Event()
+    _task_event(task_id, f"{phase}_started", elapsed_seconds=0.0, **details)
+
+    def heartbeat() -> None:
+        while not stopped.wait(_TELEMETRY_HEARTBEAT_SECONDS):
+            _task_event(
+                task_id,
+                f"{phase}_heartbeat",
+                elapsed_seconds=time.monotonic() - started,
+                **details,
+            )
+
+    thread = threading.Thread(target=heartbeat, daemon=True)
+    thread.start()
+    try:
+        yield
+    except Exception as exc:
+        _task_event(
+            task_id,
+            f"{phase}_failed",
+            elapsed_seconds=time.monotonic() - started,
+            error_type=type(exc).__name__,
+            **details,
+        )
+        raise
+    else:
+        _task_event(
+            task_id,
+            f"{phase}_completed",
+            elapsed_seconds=time.monotonic() - started,
+            **details,
+        )
+    finally:
+        stopped.set()
+        thread.join(timeout=1)
 
 
 def _load_canonical(path: Path) -> dict[str, Any]:
@@ -682,22 +737,33 @@ class OfficialSweExecutor:
     def _call(
         self,
         *,
+        task_id: str,
+        task_phase: str,
         messages: list[dict[str, object]],
         root_seed: int,
         call_index: int,
         max_tokens: int,
     ) -> dict[str, Any]:
-        return self.model.generate(
-            model=SUBJECT_MODEL,
-            messages=messages,
-            tools=[DockerSweRuntime.SHELL_TOOL],
-            seed=derive_call_seed(root_seed, "primary_subject", call_index),
-            sampling=self.sampling,
+        with _task_span(
+            task_id,
+            "model_request",
+            task_phase=task_phase,
+            call_index=call_index,
+            message_count=len(messages),
             max_tokens=max_tokens,
-        )
+        ):
+            return self.model.generate(
+                model=SUBJECT_MODEL,
+                messages=messages,
+                tools=[DockerSweRuntime.SHELL_TOOL],
+                seed=derive_call_seed(root_seed, "primary_subject", call_index),
+                sampling=self.sampling,
+                max_tokens=max_tokens,
+            )
 
     def _run_prefix(self, task: Mapping[str, object]) -> SwePrefix:
         task_id = str(task["task_id"])
+        _task_event(task_id, "prefix_scheduled", worker_id=self.worker_id)
         opening = self.openings[task_id]
         self.docker.pull(str(task["image_ref"]))
         container = self.docker.start(task, suffix="prefix")
@@ -710,6 +776,8 @@ class OfficialSweExecutor:
         try:
             while subject_calls < SWE_PREFIX_TOOL_CAP and not triggered:
                 response = self._call(
+                    task_id=task_id,
+                    task_phase="prefix",
                     messages=messages,
                     root_seed=int(opening["common_prefix_root_u64"]),
                     call_index=subject_calls,
@@ -723,7 +791,13 @@ class OfficialSweExecutor:
                 if not calls:
                     break
                 for index, call in enumerate(calls):
-                    rc, output = self.docker.exec(container, str(call["command"]))
+                    with _task_span(
+                        task_id,
+                        "tool_execution",
+                        task_phase="prefix",
+                        tool_index=subject_calls,
+                    ):
+                        rc, output = self.docker.exec(container, str(call["command"]))
                     messages.append(
                         {
                             "role": "tool",
@@ -745,8 +819,10 @@ class OfficialSweExecutor:
                         )
                         pending = calls[index + 1 :]
                         break
-            snapshot = self.docker.commit(container, label=f"{task_id}:prefix")
-            grade = self.docker.grade(snapshot, task, suffix="prefix")
+            with _task_span(task_id, "prefix_snapshot"):
+                snapshot = self.docker.commit(container, label=f"{task_id}:prefix")
+            with _task_span(task_id, "prefix_grading"):
+                grade = self.docker.grade(snapshot, task, suffix="prefix")
             packet = _packet_from_grade(grade)
             ids = self.tokenizer.encode(packet, add_special_tokens=False)
             return SwePrefix(
@@ -812,8 +888,19 @@ class OfficialSweExecutor:
         calls = prefix.subject_calls
         tokens = prefix.generated_tokens
         try:
+            _task_event(
+                prefix.task_id,
+                "branch_started",
+                branch_ordinal=slot["ordinal"],
+            )
             for pending in prefix.pending_calls:
-                rc, output = self.docker.exec(branch, str(pending["command"]))
+                with _task_span(
+                    prefix.task_id,
+                    "tool_execution",
+                    task_phase=f"branch_{slot['ordinal']}",
+                    tool_index=calls,
+                ):
+                    rc, output = self.docker.exec(branch, str(pending["command"]))
                 messages.append(
                     {
                         "role": "tool",
@@ -832,6 +919,8 @@ class OfficialSweExecutor:
                 and time.monotonic() - started < SWE_BRANCH_SECONDS
             ):
                 response = self._call(
+                    task_id=prefix.task_id,
+                    task_phase=f"branch_{slot['ordinal']}",
                     messages=messages,
                     root_seed=int(slot["model_root_u64"]),
                     call_index=calls - prefix.subject_calls,
@@ -844,7 +933,13 @@ class OfficialSweExecutor:
                 if not tool_calls:
                     break
                 for call in tool_calls:
-                    rc, output = self.docker.exec(branch, str(call["command"]))
+                    with _task_span(
+                        prefix.task_id,
+                        "tool_execution",
+                        task_phase=f"branch_{slot['ordinal']}",
+                        tool_index=calls,
+                    ):
+                        rc, output = self.docker.exec(branch, str(call["command"]))
                     messages.append(
                         {
                             "role": "tool",
@@ -860,11 +955,16 @@ class OfficialSweExecutor:
                 branch, label=f"{prefix.task_id}:slot:{slot['ordinal']}"
             )
             try:
-                grade = self.docker.grade(
-                    final_image,
-                    task,
-                    suffix=f"slot-{slot['ordinal']}",
-                )
+                with _task_span(
+                    prefix.task_id,
+                    "branch_grading",
+                    branch_ordinal=slot["ordinal"],
+                ):
+                    grade = self.docker.grade(
+                        final_image,
+                        task,
+                        suffix=f"slot-{slot['ordinal']}",
+                    )
             finally:
                 final_image.remove(force=True)
             _, diff = self.docker.exec(
@@ -872,7 +972,7 @@ class OfficialSweExecutor:
                 "git diff --binary HEAD 2>/dev/null || true",
                 seconds=120,
             )
-            return {
+            result = {
                 "slot_id": slot["slot_id"],
                 "ordinal": slot["ordinal"],
                 "arm": arm,
@@ -887,6 +987,15 @@ class OfficialSweExecutor:
                 "worktree_diff_sha256": hashlib.sha256(diff.encode()).hexdigest(),
                 "grade": grade,
             }
+            _task_event(
+                prefix.task_id,
+                "branch_completed",
+                branch_ordinal=slot["ordinal"],
+                elapsed_seconds=result["elapsed_seconds"],
+                generated_tokens=tokens,
+                subject_calls=calls,
+            )
+            return result
         finally:
             branch.remove(force=True)
 
@@ -1035,6 +1144,13 @@ class OfficialSweExecutor:
             self.store.put_once(
                 f"tasks/swe/{task_id.replace(':', '__')}.json",
                 result,
+            )
+            _task_event(
+                task_id,
+                "task_materialized",
+                benchmark="SWE",
+                worker_id=self.worker_id,
+                branch_count=len(slots),
             )
             DockerSweRuntime.cleanup(prefix)
 
@@ -1325,6 +1441,7 @@ class OfficialTauExecutor:
     def _run_prefix(self, task_id: str) -> TauPrefix:
         from tau2.runner.build import build_orchestrator
 
+        _task_event(task_id, "prefix_scheduled", benchmark="TAU", worker_id="worker-0")
         domain, task = self._task(task_id)
         opening = self.openings[task_id]
         root_seed = int(opening["common_prefix_root_u64"])
@@ -1351,13 +1468,21 @@ class OfficialTauExecutor:
                 self._set_next_seed(orchestrator, root_seed, role, simulator_calls)
                 simulator_calls += 1
             is_agent_tool, mutating = self._pending_agent_tool(orchestrator)
-            orchestrator.step()
+            with _task_span(
+                task_id,
+                "tau_step",
+                task_phase="prefix",
+                step_index=primary_calls + simulator_calls + tool_calls,
+                actor=role or "environment",
+            ):
+                orchestrator.step()
             if is_agent_tool:
                 tool_calls += 1
                 if mutating or tool_calls >= 4:
                     triggered = True
                     reason = "first_eligible_mutation" if mutating else "fourth_tool_call"
-        grade = self._grade(orchestrator, task, domain)
+        with _task_span(task_id, "prefix_grading", benchmark="TAU"):
+            grade = self._grade(orchestrator, task, domain)
         group = str(self.registry_rows[task_id].get("stratum", f"domain:{domain}"))
         return TauPrefix(
             task_id=task_id,
@@ -1397,6 +1522,12 @@ class OfficialTauExecutor:
         simulator_calls = 0
         subject_tools = 0
         started = time.monotonic()
+        _task_event(
+            prefix.task_id,
+            "branch_started",
+            benchmark="TAU",
+            branch_ordinal=slot["ordinal"],
+        )
         while (
             not branch.done
             and subject_tools < TAU_BRANCH_STEPS
@@ -1410,16 +1541,29 @@ class OfficialTauExecutor:
                 self._set_next_seed(branch, root_seed, role, simulator_calls)
                 simulator_calls += 1
             is_agent_tool, _ = self._pending_agent_tool(branch)
-            branch.step()
+            with _task_span(
+                prefix.task_id,
+                "tau_step",
+                task_phase=f"branch_{slot['ordinal']}",
+                step_index=primary_calls + simulator_calls + subject_tools,
+                actor=role or "environment",
+            ):
+                branch.step()
             if is_agent_tool:
                 subject_tools += 1
         if not branch.done:
             branch.done = True
             branch.termination_reason = TerminationReason.MAX_STEPS
-        grade = self._grade(branch, task, prefix.domain)
+        with _task_span(
+            prefix.task_id,
+            "branch_grading",
+            benchmark="TAU",
+            branch_ordinal=slot["ordinal"],
+        ):
+            grade = self._grade(branch, task, prefix.domain)
         simulation = branch._finalize()
         messages = [_tau_json(message) for message in simulation.messages]
-        return {
+        result = {
             "slot_id": slot["slot_id"],
             "ordinal": slot["ordinal"],
             "arm": arm,
@@ -1434,6 +1578,17 @@ class OfficialTauExecutor:
             "messages_sha256": canonical_digest(messages),
             "termination_reason": simulation.termination_reason,
         }
+        _task_event(
+            prefix.task_id,
+            "branch_completed",
+            benchmark="TAU",
+            branch_ordinal=slot["ordinal"],
+            elapsed_seconds=result["elapsed_seconds"],
+            primary_calls=primary_calls,
+            simulator_calls=simulator_calls,
+            subject_tool_calls=subject_tools,
+        )
+        return result
 
     def run(self, task_ids: Sequence[str]) -> dict[str, object]:
         def create_prefix(task_id: str) -> TauPrefix:
@@ -1543,6 +1698,13 @@ class OfficialTauExecutor:
             self.store.put_once(
                 f"tasks/tau/{hashlib.sha256(task_id.encode()).hexdigest()}.json",
                 result,
+            )
+            _task_event(
+                task_id,
+                "task_materialized",
+                benchmark="TAU",
+                worker_id="worker-0",
+                branch_count=len(slots),
             )
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
