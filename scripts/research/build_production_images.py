@@ -52,8 +52,21 @@ def _canonical(value: object) -> bytes:
 
 
 def _run(command: list[str], *, cwd: Path = ROOT, input_text: str | None = None) -> str:
+    # `text=True` alone decodes with the platform default, which is cp1252 on a
+    # Windows builder.  BuildKit progress output carries bytes cp1252 cannot
+    # decode, and the failure lands in a `subprocess` reader thread: the thread
+    # dies, the main thread keeps going, and the captured output is silently
+    # truncated.  A digest parsed from a truncated capture would be wrong rather
+    # than absent, so decode explicitly and never let a byte kill the reader.
     result = subprocess.run(
-        command, cwd=cwd, input=input_text, capture_output=True, text=True, check=False
+        command,
+        cwd=cwd,
+        input=input_text,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
