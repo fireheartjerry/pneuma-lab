@@ -20,6 +20,7 @@ from botocore.exceptions import ClientError
 
 from pneuma_lab.cloud.production_run import ProductionRunSpec
 from pneuma_lab.cloud.production_runtime import _extract_package
+from pneuma_lab.cloud.official_experiment import DockerSweRuntime
 
 
 REGION = "us-east-1"
@@ -79,6 +80,70 @@ def _load_images(path: Path) -> dict[str, str]:
     if any(IMAGE_RE.fullmatch(image) is None for image in result.values()):
         raise ValueError("image set contains a mutable or foreign image reference")
     return result
+
+
+def _verify_swe_runtime_canary(
+    *, package: Path, benchmark_image: str
+) -> dict[str, object]:
+    """Exercise the exact nested parser and one structured-log grade pre-mutation."""
+
+    with tempfile.TemporaryDirectory(prefix="pneuma-swe-runtime-canary-") as temporary:
+        root = Path(temporary).resolve()
+        package_root = root / "package"
+        _extract_package(package, package_root)
+        document = json.loads(
+            (package_root / "inputs/execution/swe-tasks.controller-only.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        tasks = document.get("tasks") if isinstance(document, dict) else None
+        if not isinstance(tasks, list) or not tasks:
+            raise RuntimeError("official package has no SWE runtime canary tasks")
+        runtime_root = root / "runtime"
+        runtime = DockerSweRuntime(
+            run_root=runtime_root,
+            worker_id="preflight",
+            parser_image=benchmark_image,
+            host_run_root=str(runtime_root),
+        )
+        runtime.client.images.pull(benchmark_image)
+        parser_count = 0
+        for task in tasks:
+            if not isinstance(task, dict):
+                raise RuntimeError("official SWE canary task is malformed")
+            runtime._parse_log(
+                str(task["log_parser"]), "", task_id=str(task["task_id"])
+            )
+            parser_count += 1
+        canary = next(
+            (
+                task
+                for task in tasks
+                if isinstance(task, dict)
+                and task.get("instance_id") == "cthackers__adm-zip-559"
+            ),
+            None,
+        )
+        if canary is None:
+            raise RuntimeError("registered structured-log SWE canary is absent")
+        task_image = runtime.client.images.pull(str(canary["image_ref"]))
+        grade = runtime.grade(task_image, canary, suffix="preflight")
+        registered = int(grade["registered_check_count"])
+        observed = int(grade["observed_check_count"])
+        if registered <= 0 or observed != registered:
+            raise RuntimeError(
+                f"structured-log SWE canary coverage mismatch: {observed}/{registered}"
+            )
+        if grade["pass_to_pass_failed"]:
+            raise RuntimeError("structured-log SWE canary regressed PASS_TO_PASS checks")
+        return {
+            "benchmark_image": benchmark_image,
+            "parser_count": parser_count,
+            "structured_canary_task": str(canary["task_id"]),
+            "registered_checks": registered,
+            "observed_checks": observed,
+            "status": "PASS",
+        }
 
 
 def _sha256(path: Path) -> str:
@@ -718,11 +783,15 @@ def submit(
     images = _load_images(image_set)
     if controller_image:
         images["controller"] = controller_image
+    runtime_canary = _verify_swe_runtime_canary(
+        package=package, benchmark_image=images["benchmark-worker"]
+    )
     if direct:
         preflight = {
             "mode": "direct_user_authorized",
             "package_sha256": package_sha256,
             "run_spec_sha256": run_spec_sha256,
+            "swe_runtime_canary": runtime_canary,
         }
     else:
         preflight = _verify_authorized_package(
@@ -732,6 +801,7 @@ def submit(
             run_spec_sha256=run_spec_sha256,
             images=images,
         )
+        preflight["swe_runtime_canary"] = runtime_canary
     s3 = boto3.client("s3", region_name=REGION)
     batch = boto3.client("batch", region_name=REGION)
     ec2 = boto3.client("ec2", region_name=REGION)
