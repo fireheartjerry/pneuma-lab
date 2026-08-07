@@ -20,6 +20,7 @@ the essential worker mid-run?
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 from pathlib import Path
@@ -65,10 +66,20 @@ def _select(
         if missing:
             raise SystemExit(f"unregistered task IDs: {missing}")
         return [tasks[task_id] for task_id in task_ids]
+    if language is None:
+        # Stratified: `count` tasks per language, so a sample spans the roster.
+        by_language: dict[str, list[dict[str, Any]]] = {}
+        for task in sorted(tasks.values(), key=lambda row: str(row["task_id"])):
+            by_language.setdefault(str(task["language"]).lower(), []).append(task)
+        return [
+            task
+            for key in sorted(by_language)
+            for task in by_language[key][:count]
+        ]
     pool = [
         task
         for task in tasks.values()
-        if language is None or str(task["language"]).lower() == language.lower()
+        if str(task["language"]).lower() == language.lower()
     ]
     if not pool:
         raise SystemExit(f"no registered tasks for language {language!r}")
@@ -96,7 +107,10 @@ class _Timed:
                     "error_detail": " ".join(str(exc).split())[:500],
                 }
             )
-            print(f"  {name:<18} {elapsed:8.1f}s  FAILED  {type(exc).__name__}", flush=True)
+            print(
+                f"  {name:<18} {elapsed:8.1f}s  FAILED  {type(exc).__name__}",
+                flush=True,
+            )
             raise
         elapsed = time.monotonic() - started
         legacy = elapsed > LEGACY_DOCKER_TIMEOUT_SECONDS
@@ -192,6 +206,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run the full rebuild/test/parse grade (slow, and the real test)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="concurrent task gradings; bounded by host RAM and cores",
+    )
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args(argv)
 
@@ -226,7 +246,19 @@ def main(argv: list[str] | None = None) -> int:
         parser_image=args.parser_image,
         host_run_root=host_run_root,
     )
-    results = [_smoke_one(runtime, task, grade=args.grade) for task in selected]
+    if args.workers > 1 and len(selected) > 1:
+        # Grading a heavy c/cpp task runs a parallel compile, so concurrency here
+        # is bounded by host RAM and cores, not by anything in the runtime.
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=args.workers
+        ) as executor:
+            futures = [
+                executor.submit(_smoke_one, runtime, task, grade=args.grade)
+                for task in selected
+            ]
+            results = [future.result() for future in futures]
+    else:
+        results = [_smoke_one(runtime, task, grade=args.grade) for task in selected]
     receipt = {
         "record_kind": "cloud_non_official_swe_runtime_smoke",
         "schema_version": "0.1.0",
