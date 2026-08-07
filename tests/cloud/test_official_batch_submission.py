@@ -131,9 +131,7 @@ class _BatchAutoScaling:
         self.update = None
 
     def describe_auto_scaling_groups(self, **kwargs):
-        assert kwargs == {
-            "Filters": [{"Name": "tag:ActionId", "Values": ["action-r5"]}]
-        }
+        assert kwargs == {}
         return {
             "AutoScalingGroups": [
                 {

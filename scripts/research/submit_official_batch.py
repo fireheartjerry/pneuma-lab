@@ -260,10 +260,21 @@ def _pin_batch_spot_price(autoscaling: Any, action_id: str, *, deadline: float) 
     """Raise Batch's rounded Spot cap while preserving its generated ASG policy."""
 
     while time.monotonic() < deadline:
-        groups = autoscaling.describe_auto_scaling_groups(
-            Filters=[{"Name": "tag:ActionId", "Values": [action_id]}]
-        ).get("AutoScalingGroups", [])
-        owned = [group for group in groups if _tags(group).get("ActionId") == action_id]
+        groups = []
+        token: str | None = None
+        while True:
+            request = {"NextToken": token} if token else {}
+            response = autoscaling.describe_auto_scaling_groups(**request)
+            groups.extend(response.get("AutoScalingGroups", []))
+            token = response.get("NextToken")
+            if not token:
+                break
+        owned = [
+            group
+            for group in groups
+            if _tags(group).get("ActionId") == action_id
+            or str(group.get("AutoScalingGroupName", "")).startswith(f"{action_id}-ce")
+        ]
         if len(owned) == 1:
             group = owned[0]
             policy = dict(group.get("MixedInstancesPolicy", {}))
