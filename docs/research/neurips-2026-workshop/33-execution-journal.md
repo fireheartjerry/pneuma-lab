@@ -7700,3 +7700,72 @@ No official scientific workload, model/benchmark execution, pilot, canonical
 P0 grid, live roster ceremony, unblind, scientific analysis, or claim
 promotion occurred in this action. This journal entry is forensic and does
 not mint authority.
+
+## EJ-20260807-r8-terminal-forensics-and-runtime-transport-repair
+
+Forensic entry for the terminal official action
+`official-p0-step4b-c120-20260807-r8`, Batch parent
+`74e70569-a908-498a-84a8-c09a020a6f3c`, parent status `FAILED`
+(`Array Child Job failed`). No unblind, analysis, or claim occurred, and no
+scientific conclusion is drawn here. The action is not resumed and is not
+rerun.
+
+- **Observed progress:** The action ran from Batch `createdAt`
+  `1786083142543` to array `statusSummaryLastUpdatedAt` `1786091711308`,
+  about 2.4 hours. It published 103 durable
+  `outputs/coordination/swe-prefix/*.json` objects plus the input package,
+  and zero `tasks/swe/` objects. The SWE prefix phase therefore reached 103
+  of 120 registered tasks; the SWE branch phase, the TAU phase, the
+  model-server simulator switch, and the S3 simulator RPC transport never
+  executed.
+- **Proximate cause:** The worker-1 benchmark-worker stream
+  (`.../benchmark-worker/ea1af54af45e4a34aa34c50110d94ce0`) terminates with
+  `{"reason":"ReadTimeout: UnixHTTPConnectionPool(host='localhost',
+  port=None): Read timed out. (read timeout=60)","role":"benchmark-worker",
+  "state":"FAILED"}`. The host/port shape is the Docker Unix socket, not the
+  model server. `DockerSweRuntime.__init__` called `docker.from_env()`
+  without a `timeout`, taking docker-py 7.2.0's
+  `DEFAULT_TIMEOUT_SECONDS = 60`, while `DockerSweRuntime.grade` grants
+  rebuild commands 1,800 seconds and test commands 3,600 seconds. Any command
+  outrunning 60 seconds could not return its result.
+- **Exit 137 classification:** The observed `137`s are teardown, not memory
+  exhaustion. Worker-0's benchmark-worker
+  (`.../benchmark-worker/18fdc4c496c645e68ceb6868106b2493`) emitted a routine
+  90-second `prefix_grading_heartbeat` for `swe:fluent__fluent-bit-10563` at
+  `1786091692462`, 143 seconds after worker-1 failed, and logged no failure of
+  its own. Both model-server streams end roughly 14 seconds after their
+  benchmark-worker. The essential-container failure on one child failed the
+  array parent, and the surviving healthy child was terminated.
+- **Failure locus:** The 17 tasks never reached were 5 `c`, 11 `cpp`, and 1
+  `rust`. `OfficialSweExecutor.run` runs `c`/`cpp` serially after the
+  concurrent tail, and those carry the longest rebuild commands, which is
+  where a 60-second transport budget binds hardest.
+- **Trigger-rate observation (plumbing, not a result):** All 103 published
+  prefix summaries report `triggered: true` (78 `first_eligible_mutation`, 25
+  `fourth_tool_call`). Every language reached at least two triggered tasks, so
+  the same-language/different-lineage donor constraint in
+  `OfficialSweExecutor.run` was satisfiable. This is recorded only to retire a
+  plumbing risk; it is not an outcome, effect, or scientific claim, and no arm
+  or packet content was inspected.
+- **Repair (commit `429a2c1`):** The Docker transport budget is now bound to
+  the command budget, a command budget above the transport budget is rejected
+  at the call rather than as a mid-run timeout, and `images.pull` retries
+  transiently. `exec` is deliberately not retried because rebuild and test
+  commands mutate the graded sandbox. Separately,
+  `CoordinationStore.wait_for` now takes a poll interval: the coarse
+  cross-worker barriers keep 10 seconds, while the per-call simulator RPC
+  response path polls at 0.5 seconds, since it runs once per simulator turn
+  across the whole TAU phase. Requests, responses, ordering, and seeds are
+  unchanged; only latency changes.
+- **Package-binding defect (unrepaired, tracked):** The submitted r8 package
+  was internally stale. Its embedded `official-package.json` and
+  `run-spec.json` both carry action ID
+  `official-p0-step4b-c120-20260806-r4`, and the package SHA-256 is
+  `2f404a00800136553365dc8fcb6c12cbfe207859ecde277515d4a4e636aa1043`. The
+  ledger has authorization rows only through r4 (`CL-364`); r5 through r8
+  carry no row. These were launched through the `--direct` path in
+  `submit_official_batch.py`, which bypasses `_verify_authorized_package`
+  entirely. No r9 package has been produced and no r9 submission has occurred.
+
+No experiment design, roster, assignment, packet, power tier, or analysis
+surface was altered. This entry is forensic and mints no authority.

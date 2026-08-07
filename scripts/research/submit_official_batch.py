@@ -92,9 +92,9 @@ def _verify_swe_runtime_canary(
         package_root = root / "package"
         _extract_package(package, package_root)
         document = json.loads(
-            (package_root / "inputs/execution/swe-tasks.controller-only.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                package_root / "inputs/execution/swe-tasks.controller-only.json"
+            ).read_text(encoding="utf-8")
         )
         tasks = document.get("tasks") if isinstance(document, dict) else None
         if not isinstance(tasks, list) or not tasks:
@@ -135,7 +135,9 @@ def _verify_swe_runtime_canary(
                 f"structured-log SWE canary coverage mismatch: {observed}/{registered}"
             )
         if grade["pass_to_pass_failed"]:
-            raise RuntimeError("structured-log SWE canary regressed PASS_TO_PASS checks")
+            raise RuntimeError(
+                "structured-log SWE canary regressed PASS_TO_PASS checks"
+            )
         return {
             "benchmark_image": benchmark_image,
             "parser_count": parser_count,
@@ -191,6 +193,52 @@ def _bound_json(root: Path, binding: object, label: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} is not an object")
     return value
+
+
+def _verify_package_action_identity(
+    *, action_id: str, package: Path, package_sha256: str, run_spec_sha256: str
+) -> dict[str, object]:
+    """Bind a package to its submitted action even on the direct recovery path.
+
+    The terminal r8 action submitted a package whose embedded
+    ``official-package.json`` and ``run-spec.json`` both carried the earlier r4
+    action ID.  The direct path skipped ``_verify_authorized_package`` wholesale,
+    so nothing compared the submitted action against the package contents.  The
+    direct path may still skip the authorization, launch-plan, and image checks
+    that are its purpose, but an action-identity mismatch is never launchable.
+    """
+
+    if _sha256(package) != package_sha256:
+        raise ValueError("local package bytes differ from the supplied digest")
+    with tempfile.TemporaryDirectory(prefix="pneuma-official-direct-") as temporary:
+        root = Path(temporary).resolve()
+        _extract_package(package, root)
+        package_record = json.loads((root / "official-package.json").read_text("utf-8"))
+        if not isinstance(package_record, dict):
+            raise ValueError("official package record is not an object")
+        if package_record.get("action_id") != action_id:
+            raise ValueError(
+                "official package action differs from the submitted action: "
+                f"package {package_record.get('action_id')!r} != {action_id!r}"
+            )
+        run_binding = package_record.get("run_spec_ref")
+        run_value = _bound_json(root, run_binding, "run spec")
+        if (
+            not isinstance(run_binding, dict)
+            or run_binding.get("sha256") != run_spec_sha256
+        ):
+            raise ValueError("run-spec argument differs from the package binding")
+        if run_value.get("action_id") != action_id:
+            raise ValueError(
+                "run spec action differs from the submitted action: "
+                f"run-spec {run_value.get('action_id')!r} != {action_id!r}"
+            )
+        return {
+            "official_package_sha256": package_sha256,
+            "run_spec_sha256": run_spec_sha256,
+            "package_record_action_id": str(package_record.get("action_id")),
+            "run_spec_action_id": str(run_value.get("action_id")),
+        }
 
 
 def _verify_authorized_package(
@@ -789,8 +837,12 @@ def submit(
     if direct:
         preflight = {
             "mode": "direct_user_authorized",
-            "package_sha256": package_sha256,
-            "run_spec_sha256": run_spec_sha256,
+            **_verify_package_action_identity(
+                action_id=action_id,
+                package=package,
+                package_sha256=package_sha256,
+                run_spec_sha256=run_spec_sha256,
+            ),
             "swe_runtime_canary": runtime_canary,
         }
     else:

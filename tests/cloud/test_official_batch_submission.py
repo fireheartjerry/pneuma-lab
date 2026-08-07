@@ -229,3 +229,108 @@ def test_package_staging_accepts_only_identical_existing_object(tmp_path: Path) 
             package_sha256=digest,
             action_id="action-r4",
         )
+
+
+def _write_package(
+    tmp_path: Path, *, package_action_id: str, run_spec_action_id: str
+) -> tuple[Path, str, str]:
+    """Build a minimal package archive with independently settable action IDs."""
+
+    root = tmp_path / "package-root"
+    root.mkdir()
+    run_spec = {"action_id": run_spec_action_id, "record_kind": "cloud_production_run_spec"}
+    run_spec_bytes = (
+        json.dumps(run_spec, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    (root / "run-spec.json").write_bytes(run_spec_bytes)
+    run_spec_sha256 = hashlib.sha256(run_spec_bytes).hexdigest()
+    package_record = {
+        "record_kind": "cloud_official_final_package",
+        "status": "AUTHORIZED_READY_TO_SUBMIT",
+        "action_id": package_action_id,
+        "run_spec_ref": {
+            "role": "run_spec",
+            "relative_path": "run-spec.json",
+            "sha256": run_spec_sha256,
+            "byte_count": len(run_spec_bytes),
+            "media_type": "application/json",
+        },
+    }
+    (root / "official-package.json").write_bytes(
+        (
+            json.dumps(package_record, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+    )
+    archive = tmp_path / "package.tar.gz"
+    with tarfile.open(archive, "w:gz") as handle:
+        for item in sorted(root.rglob("*")):
+            handle.add(item, arcname=item.relative_to(root).as_posix())
+    return archive, hashlib.sha256(archive.read_bytes()).hexdigest(), run_spec_sha256
+
+
+def test_direct_path_rejects_a_stale_package_action_id(tmp_path: Path) -> None:
+    """Regression: r8 submitted a package whose embedded action ID was r4."""
+
+    archive, package_sha256, run_spec_sha256 = _write_package(
+        tmp_path,
+        package_action_id="official-p0-step4b-c120-20260806-r4",
+        run_spec_action_id="official-p0-step4b-c120-20260806-r4",
+    )
+
+    with pytest.raises(ValueError, match="official package action differs"):
+        MODULE._verify_package_action_identity(
+            action_id="official-p0-step4b-c120-20260807-r8",
+            package=archive,
+            package_sha256=package_sha256,
+            run_spec_sha256=run_spec_sha256,
+        )
+
+
+def test_direct_path_rejects_a_stale_run_spec_action_id(tmp_path: Path) -> None:
+    archive, package_sha256, run_spec_sha256 = _write_package(
+        tmp_path,
+        package_action_id="official-p0-step4b-c120-20260807-r9",
+        run_spec_action_id="official-p0-step4b-c120-20260806-r4",
+    )
+
+    with pytest.raises(ValueError, match="run spec action differs"):
+        MODULE._verify_package_action_identity(
+            action_id="official-p0-step4b-c120-20260807-r9",
+            package=archive,
+            package_sha256=package_sha256,
+            run_spec_sha256=run_spec_sha256,
+        )
+
+
+def test_direct_path_accepts_a_consistently_bound_package(tmp_path: Path) -> None:
+    archive, package_sha256, run_spec_sha256 = _write_package(
+        tmp_path,
+        package_action_id="official-p0-step4b-c120-20260807-r9",
+        run_spec_action_id="official-p0-step4b-c120-20260807-r9",
+    )
+
+    preflight = MODULE._verify_package_action_identity(
+        action_id="official-p0-step4b-c120-20260807-r9",
+        package=archive,
+        package_sha256=package_sha256,
+        run_spec_sha256=run_spec_sha256,
+    )
+
+    assert preflight["package_record_action_id"] == "official-p0-step4b-c120-20260807-r9"
+    assert preflight["run_spec_action_id"] == "official-p0-step4b-c120-20260807-r9"
+
+
+def test_direct_path_rejects_a_tampered_package_digest(tmp_path: Path) -> None:
+    archive, _, run_spec_sha256 = _write_package(
+        tmp_path,
+        package_action_id="official-p0-step4b-c120-20260807-r9",
+        run_spec_action_id="official-p0-step4b-c120-20260807-r9",
+    )
+
+    with pytest.raises(ValueError, match="differ from the supplied digest"):
+        MODULE._verify_package_action_identity(
+            action_id="official-p0-step4b-c120-20260807-r9",
+            package=archive,
+            package_sha256="0" * 64,
+            run_spec_sha256=run_spec_sha256,
+        )
