@@ -7905,3 +7905,60 @@ occurred.
   unattended relaunch is not self-authorizing.
 
 This entry is forensic and mints no authority.
+
+## EJ-20260807-login-shell-path-clobber-and-observation-completeness
+
+A non-official local base-commit screen of 16 SWE tasks, two per registered
+language, was run to ask whether tasks discriminate before any repair is
+applied. It answered that question and exposed a separate harness defect. No
+subject model, simulator, S3, assignment, packet, or arm was involved, and no
+scientific result was produced.
+
+- **Base-resolve rate.** 16 of 16 graded with zero harness failures. One task,
+  `swe:Automattic__mongoose-15485`, reported `resolved: true` at its base
+  commit with no repair applied. The earlier `swe:fluent__fluent-bit-10563`
+  observation was therefore an outlier rather than a pattern, and the roster
+  largely does discriminate. This is a plumbing observation about task
+  admissibility; it is not an outcome, effect, or claim.
+- **Login-shell PATH clobber (repaired, commit `83e5c52`).**
+  `DockerSweRuntime.exec` wrapped every command in `bash -lc`. A login shell
+  sources `/etc/profile`, which on Debian overwrites `PATH` with a hardcoded
+  default and discards the image's configured `PATH`. Toolchains installed
+  outside that default, such as Go at `/usr/local/go/bin` and Rust's cargo,
+  then fail `command not found`. Verified directly in a task container: the
+  image `ENV PATH` carries `/usr/local/go/bin` and a non-login shell resolves
+  `go`, while a login shell resolves neither.
+- **Why the defect is scientifically fatal rather than merely noisy.** A
+  missing compiler is not surfaced as an error. The rebuild command fails,
+  `grade` skips the test commands, no checks are observed, and `resolved` is
+  false because the registered checks are not a subset of the observed ones.
+  The task reports unresolved in all four arms regardless of agent behaviour,
+  so it carries no signal while presenting as an ordinary negative result.
+- **Measured impact.** 8 of the 16 sampled tasks observed zero of their
+  registered checks. Retrying four of them with the image `PATH` restored
+  rescued three: `swe:TecharoHQ__anubis-881` 0/702 to 702/702,
+  `swe:0xERR0R__blocky-2016` 0/1625 to 835/1625, and
+  `swe:DioxusLabs__dioxus-5384` 0/369 to 73/369.
+  `swe:Automattic__harper-1737` remained 0/2041 and has a separate cause. A Go
+  build succeeds under `--network none` once the compiler is resolvable, so
+  this was never container network isolation.
+- **Repair shape.** The outer shell stays a login shell so profile setup still
+  runs, the image `PATH` is restored ahead of it, and the command itself runs
+  in a non-login shell so the restored `PATH` survives. The `PATH` is
+  shell-quoted. No experiment design, roster, assignment, packet, power tier,
+  analysis, or container isolation setting was changed.
+- **Open question: observation completeness.** `grade` computes `resolved` as
+  `complete.issubset(observed)` where `complete` is `FAIL_TO_PASS` union
+  `PASS_TO_PASS`. A task observing fewer checks than registered can therefore
+  never report `resolved: true` in any arm. In this sample only about four to
+  five tasks reached full observation. Whether the partial cases are real or
+  artifacts of a constrained local host running concurrent heavy builds is not
+  yet established; a serial re-screen with full host resources is running. No
+  conclusion is drawn and no roster or design change is proposed.
+- **Successor action.** The `82ae9c8` production images predate this repair, so
+  the prepared r9 package is superseded. Ledger row `CL-365` is already signed
+  against r9's exact subject digest, so the successor is
+  `official-p0-step4b-c120-20260807-r10` with row `CL-366` after a fresh image
+  rebuild. Nothing has been submitted.
+
+This entry is forensic and mints no authority.
