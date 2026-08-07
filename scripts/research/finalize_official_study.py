@@ -151,6 +151,7 @@ def _append_ledger_row(
 ) -> tuple[str, str, str]:
     if re.fullmatch(r"CL-[1-9][0-9]*", row_id) is None:
         raise ValueError("ledger row ID must be CL-<positive integer>")
+
     def line_for(value: str) -> str:
         return (
             f"| {row_id} | {value} | AWS | Official C120 P0/Step-4B launch "
@@ -308,7 +309,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
             ROOT / "scripts/research/cleanup_official_batch.py"
         ),
         "container_resources": {
-            "controller": {"vcpus": 1, "memory_mib": 2000, "gpus": 0},
+            "controller": {"vcpus": 1, "memory_mib": 4000, "gpus": 0},
             "model-server": {"vcpus": 1, "memory_mib": 46000, "gpus": 1},
             "benchmark-worker": {"vcpus": 6, "memory_mib": 12000, "gpus": 0},
         },

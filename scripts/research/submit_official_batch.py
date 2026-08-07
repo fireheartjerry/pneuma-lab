@@ -45,7 +45,7 @@ IMAGE_RE = re.compile(
 )
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 ACTION_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
-CONTROLLER_MEMORY_MIB = 2_000
+CONTROLLER_MEMORY_MIB = 4_000
 MODEL_SERVER_MEMORY_MIB = 46_000
 BENCHMARK_WORKER_MEMORY_MIB = 12_000
 
@@ -172,7 +172,11 @@ def _verify_authorized_package(
             "max_duration_seconds": 604_800,
             "max_usd": 5100.0,
             "container_resources": {
-                "controller": {"vcpus": 1, "memory_mib": 2_000, "gpus": 0},
+                "controller": {
+                    "vcpus": 1,
+                    "memory_mib": CONTROLLER_MEMORY_MIB,
+                    "gpus": 0,
+                },
                 "model-server": {"vcpus": 1, "memory_mib": 46_000, "gpus": 1},
                 "benchmark-worker": {"vcpus": 6, "memory_mib": 12_000, "gpus": 0},
             },

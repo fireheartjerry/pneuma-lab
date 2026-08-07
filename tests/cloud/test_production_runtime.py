@@ -1,22 +1,55 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
 import sys
 
 from pneuma_lab.cloud.manifests import validate_production_role_receipt
+from pneuma_lab.cloud.production_runtime import (
+    _PAYLOAD_HASH_CHUNK_BYTES,
+    _file_sha256,
+)
+
+
+def test_payload_hashing_is_streamed_with_bounded_reads(tmp_path, monkeypatch) -> None:
+    payload = b"payload" * 1024
+
+    class GuardedStream(io.BytesIO):
+        def read(self, size=-1):
+            assert 0 < size <= _PAYLOAD_HASH_CHUNK_BYTES
+            return super().read(size)
+
+    monkeypatch.setattr(
+        type(tmp_path), "open", lambda *_args, **_kwargs: GuardedStream(payload)
+    )
+    size, digest = _file_sha256(tmp_path / "large-shard.partial")
+
+    assert size == len(payload)
+    assert digest == hashlib.sha256(payload).hexdigest()
 
 
 def test_exact_harness_bytes_are_required(tmp_path) -> None:
     harness = tmp_path / "harness.json"
     harness.write_bytes(b'{"harness":"exact"}')
     digest = hashlib.sha256(harness.read_bytes()).hexdigest()
-    command = [sys.executable, "-m", "pneuma_lab.cloud.production_runtime", "controller", "--harness", str(harness), "--harness-sha256", digest]
+    command = [
+        sys.executable,
+        "-m",
+        "pneuma_lab.cloud.production_runtime",
+        "controller",
+        "--harness",
+        str(harness),
+        "--harness-sha256",
+        digest,
+    ]
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     assert result.returncode == 0
     assert json.loads(result.stdout)["state"] == "READY"
-    result = subprocess.run([*command[:-1], "0" * 64], capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        [*command[:-1], "0" * 64], capture_output=True, text=True, check=False
+    )
     assert result.returncode == 2
     assert json.loads(result.stdout)["reason"] == "harness_sha256_mismatch"
 
@@ -35,7 +68,12 @@ def test_e2e_role_handshake_is_content_addressed(tmp_path) -> None:
             "temperature": 0.0,
         },
     }
-    harness.write_bytes(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode() + b"\n")
+    harness.write_bytes(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
+        + b"\n"
+    )
     harness_digest = hashlib.sha256(harness.read_bytes()).hexdigest()
 
     def run(role: str, input_path=None):
@@ -76,7 +114,9 @@ def test_e2e_role_handshake_is_content_addressed(tmp_path) -> None:
     assert worker_receipt["payload"]["accepted"] is True
 
     wrong_predecessor = tmp_path / "wrong.json"
-    wrong_predecessor.write_text(json.dumps({"record_kind": "cloud_production_role_receipt"}), encoding="utf-8")
+    wrong_predecessor.write_text(
+        json.dumps({"record_kind": "cloud_production_role_receipt"}), encoding="utf-8"
+    )
     failed = run("model-server", wrong_predecessor)
     assert failed.returncode == 2
     assert json.loads(failed.stdout)["reason"] == "predecessor_harness_mismatch"

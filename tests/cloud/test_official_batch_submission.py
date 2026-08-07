@@ -59,7 +59,7 @@ def test_official_multicontainer_resources_fill_one_whole_worker() -> None:
             for item in group
             if item["type"] == "MEMORY"
         )
-        == 60000
+        == 62000
     )
     assert (
         sum(

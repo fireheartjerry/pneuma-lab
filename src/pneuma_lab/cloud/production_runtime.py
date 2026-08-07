@@ -24,7 +24,11 @@ from urllib.parse import urlparse
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from .production_evidence import ProductionWorkerExecutor, launch_model_server, write_worker_result
+from .production_evidence import (
+    ProductionWorkerExecutor,
+    launch_model_server,
+    write_worker_result,
+)
 from .official_experiment import (
     CoordinationStore,
     OfficialSweExecutor,
@@ -34,15 +38,28 @@ from .official_experiment import (
     serve_simulator_rpc,
 )
 from .production_controller import ProductionOrchestrator, ProductionStateStore
-from .production_run import ProductionRunSpec, canonical_digest, task_rows, work_ids_for_worker
+from .production_run import (
+    ProductionRunSpec,
+    canonical_digest,
+    task_rows,
+    work_ids_for_worker,
+)
 
 _ROLES = frozenset({"controller", "model-server", "benchmark-worker"})
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _E2E_KIND = "cloud_production_e2e_harness"
+_PAYLOAD_HASH_CHUNK_BYTES = 8 * 1024 * 1024
+_PAYLOAD_DOWNLOAD_WORKERS = 4
 
 
 def _canonical(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -51,6 +68,18 @@ def _canonical_bytes(value: object) -> bytes:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _file_sha256(path: Path) -> tuple[int, str]:
+    """Hash a potentially multi-GiB payload with bounded resident memory."""
+
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(_PAYLOAD_HASH_CHUNK_BYTES):
+            size += len(chunk)
+            digest.update(chunk)
+    return size, digest.hexdigest()
 
 
 def _failure(role: str, reason: str) -> int:
@@ -78,7 +107,9 @@ def _extract_package(archive: Path, destination: Path) -> None:
             raise ValueError("run package is empty")
         for member in members:
             if not member.isfile() and not member.isdir():
-                raise ValueError("run package may contain only regular files/directories")
+                raise ValueError(
+                    "run package may contain only regular files/directories"
+                )
             target = (destination / member.name).resolve()
             if target != root and root not in target.parents:
                 raise ValueError("run package path escapes the run root")
@@ -167,17 +198,18 @@ def _reconstruct_registered_payloads(*, run_root: Path) -> list[dict[str, object
                 f"{prefix}/objects/{row['object_id']}",
                 str(temporary),
             )
-            payload = temporary.read_bytes()
-            if (
-                len(payload) != row.get("size_bytes")
-                or hashlib.sha256(payload).hexdigest() != row.get("payload_sha256")
+            payload_size, payload_sha256 = _file_sha256(temporary)
+            if payload_size != row.get("size_bytes") or payload_sha256 != row.get(
+                "payload_sha256"
             ):
                 temporary.unlink(missing_ok=True)
                 raise ValueError("payload bytes differ from their frozen snapshot")
             temporary.replace(target)
-            return len(payload)
+            return payload_size
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=_PAYLOAD_DOWNLOAD_WORKERS
+        ) as executor:
             sizes = list(executor.map(install, rows))
         expected_count = snapshot.get("object_count")
         expected_bytes = snapshot.get("payload_bytes")
@@ -266,12 +298,18 @@ def _worker_private_ipv4() -> str:
     metadata = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
     if metadata:
         try:
-            with urllib_request.urlopen(metadata.rstrip("/") + "/task", timeout=5) as response:
+            with urllib_request.urlopen(
+                metadata.rstrip("/") + "/task", timeout=5
+            ) as response:
                 value = json.loads(response.read().decode("utf-8"))
             networks = value.get("Networks") if isinstance(value, dict) else None
             if isinstance(networks, list):
                 for network in networks:
-                    addresses = network.get("IPv4Addresses") if isinstance(network, dict) else None
+                    addresses = (
+                        network.get("IPv4Addresses")
+                        if isinstance(network, dict)
+                        else None
+                    )
                     if isinstance(addresses, list):
                         for address in addresses:
                             if isinstance(address, str) and address.count(".") == 3:
@@ -353,7 +391,9 @@ def _official_worker_execution(
     if worker_id == "worker-1":
         (control / "simulator.requested").write_text("simulator\n", encoding="utf-8")
         deadline = time.monotonic() + 1800
-        while time.monotonic() < deadline and not (control / "simulator.ready").is_file():
+        while (
+            time.monotonic() < deadline and not (control / "simulator.ready").is_file()
+        ):
             time.sleep(5)
         if not (control / "simulator.ready").is_file():
             raise TimeoutError("simulator model server did not switch")
@@ -417,11 +457,16 @@ def _require_e2e_harness(payload: bytes) -> dict[str, Any] | None:
         return None
     if not isinstance(harness, dict) or _canonical_bytes(harness) != payload:
         return None
-    if harness.get("record_kind") != _E2E_KIND or harness.get("schema_version") != "0.1.0":
+    if (
+        harness.get("record_kind") != _E2E_KIND
+        or harness.get("schema_version") != "0.1.0"
+    ):
         return None
     if not isinstance(harness.get("action_id"), str) or not harness["action_id"]:
         return None
-    if not isinstance(harness.get("input_lock_sha256"), str) or not _DIGEST.fullmatch(harness["input_lock_sha256"]):
+    if not isinstance(harness.get("input_lock_sha256"), str) or not _DIGEST.fullmatch(
+        harness["input_lock_sha256"]
+    ):
         return None
     request = harness.get("request")
     if not isinstance(request, dict):
@@ -430,14 +475,23 @@ def _require_e2e_harness(payload: bytes) -> dict[str, Any] | None:
         return None
     if not isinstance(request.get("prompt"), str) or not request["prompt"]:
         return None
-    if type(request.get("max_tokens")) is not int or not 1 <= request["max_tokens"] <= 16:
+    if (
+        type(request.get("max_tokens")) is not int
+        or not 1 <= request["max_tokens"] <= 16
+    ):
         return None
     if type(request.get("temperature")) is not float or request["temperature"] != 0.0:
         return None
     return harness
 
 
-def _common(harness: dict[str, Any], role: str, state: str, harness_sha256: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _common(
+    harness: dict[str, Any],
+    role: str,
+    state: str,
+    harness_sha256: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
     request = harness["request"]
     request_bytes = _canonical_bytes(request)
     return {
@@ -463,7 +517,9 @@ def _load_input(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def _e2e(role: str, harness: dict[str, Any], harness_sha256: str, input_path: Path | None) -> int:
+def _e2e(
+    role: str, harness: dict[str, Any], harness_sha256: str, input_path: Path | None
+) -> int:
     request = harness["request"]
     request_sha256 = _sha256(_canonical_bytes(request))
     if role == "controller":
@@ -488,20 +544,29 @@ def _e2e(role: str, harness: dict[str, Any], harness_sha256: str, input_path: Pa
         return _failure(role, "predecessor_kind_mismatch")
     if predecessor.get("harness_sha256") != harness_sha256:
         return _failure(role, "predecessor_harness_mismatch")
-    if predecessor.get("action_id") != harness["action_id"] or predecessor.get("input_lock_sha256") != harness["input_lock_sha256"]:
+    if (
+        predecessor.get("action_id") != harness["action_id"]
+        or predecessor.get("input_lock_sha256") != harness["input_lock_sha256"]
+    ):
         return _failure(role, "predecessor_authority_mismatch")
     if predecessor.get("request_sha256") != request_sha256:
         return _failure(role, "predecessor_request_mismatch")
 
     if role == "model-server":
-        if predecessor.get("role") != "controller" or predecessor.get("state") != "DISPATCHED":
+        if (
+            predecessor.get("role") != "controller"
+            or predecessor.get("state") != "DISPATCHED"
+        ):
             return _failure(role, "controller_dispatch_required")
         digest = _sha256(request["prompt"].encode("utf-8"))
         token_count = min(request["max_tokens"], 4)
         response = {
             "adapter": "content-addressed-qualification-v1",
             "text": f"qualification:{digest[:16]}",
-            "token_ids": [int(digest[index : index + 2], 16) for index in range(0, token_count * 2, 2)],
+            "token_ids": [
+                int(digest[index : index + 2], 16)
+                for index in range(0, token_count * 2, 2)
+            ],
         }
         response_sha256 = _sha256(_canonical_bytes(response))
         receipt = _common(
@@ -509,22 +574,37 @@ def _e2e(role: str, harness: dict[str, Any], harness_sha256: str, input_path: Pa
             role,
             "RESPONDED",
             harness_sha256,
-            {"response": response, "response_sha256": response_sha256, "next_role": "benchmark-worker"},
+            {
+                "response": response,
+                "response_sha256": response_sha256,
+                "next_role": "benchmark-worker",
+            },
         )
         print(_canonical(receipt))
         return 0
 
-    if predecessor.get("role") != "model-server" or predecessor.get("state") != "RESPONDED":
+    if (
+        predecessor.get("role") != "model-server"
+        or predecessor.get("state") != "RESPONDED"
+    ):
         return _failure(role, "model_response_required")
     predecessor_payload = predecessor.get("payload")
     if not isinstance(predecessor_payload, dict):
         return _failure(role, "model_payload_invalid")
     response = predecessor_payload.get("response")
     response_sha256 = predecessor_payload.get("response_sha256")
-    if not isinstance(response, dict) or not isinstance(response_sha256, str) or _sha256(_canonical_bytes(response)) != response_sha256:
+    if (
+        not isinstance(response, dict)
+        or not isinstance(response_sha256, str)
+        or _sha256(_canonical_bytes(response)) != response_sha256
+    ):
         return _failure(role, "model_response_digest_mismatch")
     token_ids = response.get("token_ids")
-    if not isinstance(token_ids, list) or not token_ids or any(type(token) is not int or not 0 <= token <= 255 for token in token_ids):
+    if (
+        not isinstance(token_ids, list)
+        or not token_ids
+        or any(type(token) is not int or not 0 <= token <= 255 for token in token_ids)
+    ):
         return _failure(role, "model_response_tokens_invalid")
     receipt = _common(
         harness,
@@ -579,7 +659,10 @@ def _production(
                 state_path,
                 action_id=str(spec.value["action_id"]),
                 run_spec_sha256=spec.digest,
-                binding={"action_id": spec.value["action_id"], "run_spec_sha256": spec.digest},
+                binding={
+                    "action_id": spec.value["action_id"],
+                    "run_spec_sha256": spec.digest,
+                },
             )
             orchestrator = ProductionOrchestrator(
                 store,
@@ -698,7 +781,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.role != "controller":
             return _failure(args.role, "only_controller_may_stage_package")
         if args.package_s3_uri is None or args.package_sha256 is None:
-            parser.error("--package-s3-uri and --package-sha256 are required for staging")
+            parser.error(
+                "--package-s3-uri and --package-sha256 are required for staging"
+            )
         try:
             receipt = _stage_official_package(
                 package_uri=args.package_s3_uri,
@@ -710,7 +795,9 @@ def main(argv: list[str] | None = None) -> int:
         print(_canonical(receipt))
         return 0
     if args.protocol == "production":
-        if args.run_spec_sha256 is not None and not _DIGEST.fullmatch(args.run_spec_sha256):
+        if args.run_spec_sha256 is not None and not _DIGEST.fullmatch(
+            args.run_spec_sha256
+        ):
             parser.error("--run-spec-sha256 must be lowercase SHA-256")
         return _production(
             args.role,
@@ -722,7 +809,9 @@ def main(argv: list[str] | None = None) -> int:
             run_root=args.run_root,
         )
     if args.harness is None or args.harness_sha256 is None:
-        parser.error("--harness and --harness-sha256 are required for qualification protocols")
+        parser.error(
+            "--harness and --harness-sha256 are required for qualification protocols"
+        )
     if not _DIGEST.fullmatch(args.harness_sha256):
         parser.error("--harness-sha256 must be lowercase SHA-256")
     read = _read_harness(args.harness, args.harness_sha256)
@@ -730,7 +819,16 @@ def main(argv: list[str] | None = None) -> int:
         return _failure(args.role, "harness_sha256_mismatch")
     payload, observed = read
     if args.protocol == "verify":
-        print(_canonical({"role": args.role, "state": "READY", "harness_sha256": observed, "harness_bytes": len(payload)}))
+        print(
+            _canonical(
+                {
+                    "role": args.role,
+                    "state": "READY",
+                    "harness_sha256": observed,
+                    "harness_bytes": len(payload),
+                }
+            )
+        )
         return 0
     harness = _require_e2e_harness(payload)
     if harness is None:
