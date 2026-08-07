@@ -7842,3 +7842,66 @@ non-uint64 root, a missing RNG block, and an absent archive.
 
 No package was produced and no submission occurred. Both entries are forensic
 and mint no authority.
+
+## EJ-20260807-r9-images-package-and-canary
+
+Successor action `official-p0-step4b-c120-20260807-r9` was prepared. Nothing
+was submitted, no provider workload ran, and no unblind, analysis, or claim
+occurred.
+
+- **Images rebuilt.** The repaired transport and grading budgets live in
+  `src/pneuma_lab/cloud/official_experiment.py`, which
+  `infra/docker/*/Dockerfile` copies into each role image, so the existing ECR
+  digests carried the r8 code and could not be reused. The three roles were
+  rebuilt from commit `82ae9c8a8266c3352600cece40d79387459a1730`: controller
+  `sha256:4635280da46434915b587ea60c11f5ba85fd1d35975b6d26d8c8cefc499fb76d`,
+  model-server
+  `sha256:1c4e770b63c9b57b752ca508b060e3eacc1e9e57ccff5e8dd866c67fe8e16d07`,
+  benchmark-worker
+  `sha256:c7580d2b931f2c2c25bc13c96e462abaa6b8a6dd6d7ab6bb657d0431e9bae65c`.
+  All three were confirmed present in ECR by digest, and the benchmark-worker
+  image was introspected directly to confirm it carries
+  `_DOCKER_API_TIMEOUT_SECONDS` 15,000, `SWE_TEST_SECONDS` 14,400,
+  `SWE_REBUILD_SECONDS` 7,200, `_SIMULATOR_RPC_POLL_SECONDS` 0.5, and
+  `_DOCKER_PULL_ATTEMPTS` 3.
+- **Builder defect repaired (commit `c424acc`).** The build emitted a
+  `UnicodeDecodeError` from a `subprocess` reader thread because `text=True`
+  decoded BuildKit output as cp1252. The thread dies, the main thread
+  continues, and that subprocess's captured output is silently truncated. This
+  build was unaffected, proven by independent ECR digest reads and the image
+  introspection above, but a digest parsed from a truncated capture would be
+  wrong rather than absent. `_run` now decodes UTF-8 with `errors="replace"`.
+- **Package finalized.** `finalize_official_study.py` ran with
+  `--carry-forward-rng-from` against the retained r4 package. Package SHA-256
+  `78f6377b799db299ba76c10425ad5dd4427bc1b901736c4b0f5ddb74a759dabe`,
+  run-spec SHA-256
+  `352c46ef392a59ff4b3242eb9f5b4f27446fc6894f2382702d67a48a0838cbf4`,
+  authorization SHA-256
+  `ab7d65cc24b87a7a17ab461e8c7b34aa74c85c85b4a835945d3f3961d702b04c`,
+  run-spec subject SHA-256
+  `49c2738c8a21471d6283417d477eca2b312b4a9bd4ad4522ab613b8be3284ac5`,
+  ledger row `CL-365`, `code_commit` `82ae9c8a8266c3352600cece40d79387459a1730`,
+  power tier 120, ceiling USD 5,100.00.
+- **The r8 defect is absent.** The package record, run spec, authorization, and
+  launch plan all carry action ID `official-p0-step4b-c120-20260807-r9`, and
+  `output.root` is `outputs/official-p0-step4b-c120-20260807-r9`. The r8
+  package carried r4 in all of these. The full
+  `_verify_authorized_package` path passes, covering package and run-spec
+  digests, the KMS signature chain, the launch plan including
+  `submission_source_sha256` and `cleanup_source_sha256`, the image set, and
+  the authorization action.
+- **RNG continuity.** The carried block reproduces `root_u64`
+  `3559187605953737994` and the sealed seed digests from the r4 package, with
+  only the commitment reference rebound. The frozen draw, and therefore the
+  sealed assignment and packet authority, are preserved.
+- **Runtime canary PASS.** The mandatory gate ran against the new
+  benchmark-worker image: `parser_count` 120, `registered_checks` 87,
+  `observed_checks` 87, structured canary task `swe:cthackers__adm-zip-559`,
+  status `PASS`.
+- **Launch bound outstanding.** Submission is deliberately withheld pending an
+  explicit human-operator relaunch count and total spend ceiling. Each official
+  action carries a USD 5,100.00 ceiling with `max_attempts` 1, and every
+  relaunch mints a new action ID, KMS authorization, and ledger row, so
+  unattended relaunch is not self-authorizing.
+
+This entry is forensic and mints no authority.
