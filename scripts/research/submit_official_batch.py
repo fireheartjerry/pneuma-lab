@@ -48,6 +48,7 @@ ACTION_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 CONTROLLER_MEMORY_MIB = 4_000
 MODEL_SERVER_MEMORY_MIB = 46_000
 BENCHMARK_WORKER_MEMORY_MIB = 12_000
+SPOT_MAX_PRICE_USD_PER_INSTANCE_HOUR = "5.00000"
 
 
 def _canonical(value: object) -> bytes:
@@ -171,6 +172,9 @@ def _verify_authorized_package(
             "attempts": 1,
             "max_duration_seconds": 604_800,
             "max_usd": 5100.0,
+            "spot_max_price_usd_per_instance_hour": float(
+                SPOT_MAX_PRICE_USD_PER_INSTANCE_HOUR
+            ),
             "container_resources": {
                 "controller": {
                     "vcpus": 1,
@@ -250,6 +254,37 @@ def _wait_queue(batch: Any, name: str, *, deadline: float) -> str:
                 raise RuntimeError(f"job queue invalid: {item.get('statusReason')}")
         time.sleep(5)
     raise TimeoutError("job queue did not become valid")
+
+
+def _pin_batch_spot_price(autoscaling: Any, action_id: str, *, deadline: float) -> str:
+    """Raise Batch's rounded Spot cap while preserving its generated ASG policy."""
+
+    while time.monotonic() < deadline:
+        groups = autoscaling.describe_auto_scaling_groups(
+            Filters=[{"Name": "tag:ActionId", "Values": [action_id]}]
+        ).get("AutoScalingGroups", [])
+        owned = [group for group in groups if _tags(group).get("ActionId") == action_id]
+        if len(owned) == 1:
+            group = owned[0]
+            policy = dict(group.get("MixedInstancesPolicy", {}))
+            launch = dict(policy.get("LaunchTemplate", {}))
+            specification = dict(launch.get("LaunchTemplateSpecification", {}))
+            if specification.get("LaunchTemplateId"):
+                specification.pop("LaunchTemplateName", None)
+            launch["LaunchTemplateSpecification"] = specification
+            distribution = dict(policy.get("InstancesDistribution", {}))
+            distribution["SpotMaxPrice"] = SPOT_MAX_PRICE_USD_PER_INSTANCE_HOUR
+            policy["LaunchTemplate"] = launch
+            policy["InstancesDistribution"] = distribution
+            autoscaling.update_auto_scaling_group(
+                AutoScalingGroupName=str(group["AutoScalingGroupName"]),
+                MixedInstancesPolicy=policy,
+            )
+            return str(group["AutoScalingGroupName"])
+        if len(owned) > 1:
+            raise RuntimeError("multiple Batch Auto Scaling groups match this action")
+        time.sleep(5)
+    raise TimeoutError("Batch Auto Scaling group did not become discoverable")
 
 
 def _ensure_package_object(
@@ -666,6 +701,7 @@ def submit(
     batch = boto3.client("batch", region_name=REGION)
     ec2 = boto3.client("ec2", region_name=REGION)
     iam = boto3.client("iam", region_name=REGION)
+    autoscaling = boto3.client("autoscaling", region_name=REGION)
     package_key = f"runs/official/{action_id}/inputs/package.tar.gz"
     output_prefix = f"runs/official/{action_id}/outputs"
     package_uri = f"s3://{BUCKET}/{package_key}"
@@ -752,6 +788,7 @@ def submit(
     )
     deadline = time.monotonic() + 900
     compute_arn = _wait_compute(batch, compute_name, deadline=deadline)
+    autoscaling_group = _pin_batch_spot_price(autoscaling, action_id, deadline=deadline)
     batch.create_job_queue(
         jobQueueName=queue_name,
         state="ENABLED",
@@ -836,6 +873,10 @@ def submit(
         "array_job_id": submitted["jobId"],
         "array_size": 2,
         "max_spot_vcpus": 16,
+        "spot_max_price_usd_per_instance_hour": float(
+            SPOT_MAX_PRICE_USD_PER_INSTANCE_HOUR
+        ),
+        "auto_scaling_group": autoscaling_group,
         "public_subnets": subnets,
         "security_group_ids": security_groups,
         "launch_template_id": launch_template_id,

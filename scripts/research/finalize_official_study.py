@@ -299,6 +299,7 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
         "attempts": 1,
         "max_duration_seconds": 604_800,
         "max_usd": 5100.0,
+        "spot_max_price_usd_per_instance_hour": 5.0,
         "images": [
             {"role": role, "image_digest": image_digests[role]} for role in ROLE_ORDER
         ],

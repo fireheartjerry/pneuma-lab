@@ -126,6 +126,57 @@ def test_tag_rows_override_without_duplicate_keys() -> None:
     ]
 
 
+class _BatchAutoScaling:
+    def __init__(self) -> None:
+        self.update = None
+
+    def describe_auto_scaling_groups(self, **kwargs):
+        assert kwargs == {
+            "Filters": [{"Name": "tag:ActionId", "Values": ["action-r5"]}]
+        }
+        return {
+            "AutoScalingGroups": [
+                {
+                    "AutoScalingGroupName": "batch-generated-asg",
+                    "Tags": [{"Key": "ActionId", "Value": "action-r5"}],
+                    "MixedInstancesPolicy": {
+                        "LaunchTemplate": {
+                            "LaunchTemplateSpecification": {
+                                "LaunchTemplateId": "lt-123",
+                                "LaunchTemplateName": "duplicate-provider-field",
+                                "Version": "1",
+                            },
+                            "Overrides": [{"InstanceType": "g6e.2xlarge"}],
+                        },
+                        "InstancesDistribution": {
+                            "OnDemandPercentageAboveBaseCapacity": 0,
+                            "SpotAllocationStrategy": "price-capacity-optimized",
+                            "SpotMaxPrice": "2.24208",
+                        },
+                    },
+                }
+            ]
+        }
+
+    def update_auto_scaling_group(self, **kwargs):
+        self.update = kwargs
+
+
+def test_batch_spot_cap_is_pinned_without_losing_generated_policy() -> None:
+    autoscaling = _BatchAutoScaling()
+
+    name = MODULE._pin_batch_spot_price(autoscaling, "action-r5", deadline=float("inf"))
+
+    assert name == "batch-generated-asg"
+    assert autoscaling.update["AutoScalingGroupName"] == name
+    policy = autoscaling.update["MixedInstancesPolicy"]
+    assert policy["InstancesDistribution"]["SpotMaxPrice"] == "5.00000"
+    assert policy["InstancesDistribution"]["OnDemandPercentageAboveBaseCapacity"] == 0
+    specification = policy["LaunchTemplate"]["LaunchTemplateSpecification"]
+    assert specification == {"LaunchTemplateId": "lt-123", "Version": "1"}
+    assert policy["LaunchTemplate"]["Overrides"] == [{"InstanceType": "g6e.2xlarge"}]
+
+
 class _ExistingPackageS3:
     def __init__(self, *, size: int, digest: str, action_id: str) -> None:
         self.size = size
