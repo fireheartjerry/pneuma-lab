@@ -31,6 +31,8 @@ from .official_execution_assets import validate_swe_execution_assets
 from .production_run import ProductionRunSpec, canonical_bytes, canonical_digest
 
 
+_SWE_TOOL_OUTPUT_CHARS = 12_000
+_SWE_PREFIX_WORKERS = 2
 ARMS = frozenset({"REAL", "SHAM", "NONE", "RESAMPLE"})
 SUBJECT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
 SIMULATOR_MODEL = "Qwen/Qwen3.5-9B"
@@ -301,7 +303,11 @@ class VllmChatClient:
             json=body,
             timeout=self.request_timeout,
         )
-        response.raise_for_status()
+        if not response.ok:
+            detail = " ".join(response.text[:2_000].split())
+            raise CloudManifestError(
+                f"vLLM chat request failed with HTTP {response.status_code}: {detail}"
+            )
         value = response.json()
         if not isinstance(value, dict):
             raise CloudManifestError("vLLM returned a non-object")
@@ -411,8 +417,9 @@ class DockerSweRuntime:
         result = container.exec_run(wrapped, workdir="/testbed", demux=False)
         payload = result.output if isinstance(result.output, bytes) else bytes(result.output)
         text = payload.decode("utf-8", errors="replace")
-        if len(text) > 80_000:
-            text = text[:40_000] + "\n...[truncated]...\n" + text[-40_000:]
+        if len(text) > _SWE_TOOL_OUTPUT_CHARS:
+            half = _SWE_TOOL_OUTPUT_CHARS // 2
+            text = text[:half] + "\n...[context-safe truncation]...\n" + text[-half:]
         return int(result.exit_code), text
 
     def state_digest(self, container: Any) -> tuple[str, bool]:
@@ -912,7 +919,12 @@ class OfficialSweExecutor:
         ]
         light = [task_id for task_id in task_ids if task_id not in set(heavy)]
         prefixes: dict[str, SwePrefix] = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        # Two concurrent sandboxes leave headroom for vLLM, Docker, and the OS on
+        # the 64-GiB g6e.2xlarge. Four concurrent compilers previously exhausted
+        # the host and killed the model server with exit 137.
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=_SWE_PREFIX_WORKERS
+        ) as executor:
             futures = {task_id: executor.submit(create_prefix, task_id) for task_id in light}
             for task_id in light:
                 prefixes[task_id] = futures[task_id].result()
@@ -1026,7 +1038,9 @@ class OfficialSweExecutor:
             )
             DockerSweRuntime.cleanup(prefix)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=_SWE_PREFIX_WORKERS
+        ) as executor:
             futures = {task_id: executor.submit(complete_task, task_id) for task_id in light}
             for task_id in light:
                 futures[task_id].result()

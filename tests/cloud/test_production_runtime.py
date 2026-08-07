@@ -9,6 +9,7 @@ import sys
 from pneuma_lab.cloud.manifests import validate_production_role_receipt
 from pneuma_lab.cloud.production_runtime import (
     _PAYLOAD_HASH_CHUNK_BYTES,
+    _exception_reason,
     _file_sha256,
 )
 
@@ -28,6 +29,14 @@ def test_payload_hashing_is_streamed_with_bounded_reads(tmp_path, monkeypatch) -
 
     assert size == len(payload)
     assert digest == hashlib.sha256(payload).hexdigest()
+
+
+def test_exception_diagnostics_are_bounded_and_single_line() -> None:
+    reason = _exception_reason(ValueError("first\n" + "x" * 3_000))
+
+    assert reason.startswith("ValueError: first ")
+    assert "\n" not in reason
+    assert len(reason) <= 2_012
 
 
 def test_exact_harness_bytes_are_required(tmp_path) -> None:

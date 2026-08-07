@@ -87,6 +87,13 @@ def _failure(role: str, reason: str) -> int:
     return 2
 
 
+def _exception_reason(exc: Exception) -> str:
+    """Return bounded, single-line diagnostics without dumping request payloads."""
+
+    detail = " ".join(str(exc).split())[:2_000]
+    return f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+
+
 def _s3_location(uri: str) -> tuple[str, str]:
     parsed = urlparse(uri)
     if parsed.scheme != "s3" or not parsed.netloc or not parsed.path.lstrip("/"):
@@ -756,7 +763,7 @@ def _production(
         )
         return 0
     except Exception as exc:
-        return _failure(role, type(exc).__name__)
+        return _failure(role, _exception_reason(exc))
 
 
 def main(argv: list[str] | None = None) -> int:
