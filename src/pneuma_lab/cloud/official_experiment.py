@@ -35,6 +35,22 @@ from .production_run import ProductionRunSpec, canonical_bytes, canonical_digest
 _SWE_TOOL_OUTPUT_CHARS = 12_000
 _SWE_GRADER_LOG_CHARS = 5_000_000
 _SWE_PREFIX_WORKERS = 2
+# The longest in-container budget this runtime grants a single command is the
+# 3,600-second test-command budget in `DockerSweRuntime.grade`.  docker-py's
+# default socket read timeout is 60 seconds, so every command that outran a
+# minute raised `ReadTimeout` and killed the essential worker mid-run.  Give the
+# transport the full command budget plus margin for the in-container
+# `timeout --signal=KILL` wrapper to fire and for output to stream back.
+_DOCKER_MAX_COMMAND_SECONDS = 3_600
+_DOCKER_API_MARGIN_SECONDS = 600
+_DOCKER_API_TIMEOUT_SECONDS = _DOCKER_MAX_COMMAND_SECONDS + _DOCKER_API_MARGIN_SECONDS
+_DOCKER_PULL_ATTEMPTS = 3
+_DOCKER_PULL_BACKOFF_SECONDS = 5.0
+# Coarse cross-worker barriers wait on events minutes to hours apart, so a slow
+# poll is free.  The simulator RPC response path is the opposite: it runs once
+# per simulator turn across the whole TAU phase, so it polls quickly.
+_BARRIER_POLL_SECONDS = 10.0
+_SIMULATOR_RPC_POLL_SECONDS = 0.5
 _TELEMETRY_HEARTBEAT_SECONDS = 15.0
 _TELEMETRY_LOCK = threading.Lock()
 _TELEMETRY_ERROR_CHARS = 1_000
@@ -191,12 +207,27 @@ class CoordinationStore:
                 return False
             raise
 
-    def wait_for(self, relatives: Sequence[str], *, deadline: float) -> None:
+    def wait_for(
+        self,
+        relatives: Sequence[str],
+        *,
+        deadline: float,
+        poll_seconds: float = _BARRIER_POLL_SECONDS,
+    ) -> None:
+        """Block until every relative key exists.
+
+        The default interval suits the coarse cross-worker barriers.  The
+        per-call simulator RPC path passes a much shorter interval: it is the
+        hot path for roughly ten thousand calls, where a ten-second granularity
+        would add hours of pure polling latency to the TAU phase.  Only latency
+        changes -- the requests, responses, and ordering are identical.
+        """
+
         pending = set(relatives)
         while pending and time.monotonic() < deadline:
             pending = {item for item in pending if not self.exists(item)}
             if pending:
-                time.sleep(10)
+                time.sleep(poll_seconds)
         if pending:
             raise TimeoutError(
                 f"official coordination barrier timed out: {sorted(pending)}"
@@ -252,7 +283,11 @@ class SimulatorRpcProxy:
                     {"request_id": request_id, "ordinal": ordinal, "body": value},
                 )
                 response_key = f"coordination/simulator-rpc/responses/{request_id}.json"
-                outer.store.wait_for([response_key], deadline=time.monotonic() + 3600)
+                outer.store.wait_for(
+                    [response_key],
+                    deadline=time.monotonic() + 3600,
+                    poll_seconds=_SIMULATOR_RPC_POLL_SECONDS,
+                )
                 response = outer.store.get(response_key)
                 status = response.get("status_code")
                 payload = response.get("body")
@@ -448,7 +483,7 @@ class DockerSweRuntime:
     ) -> None:
         import docker
 
-        self.client = docker.from_env()
+        self.client = docker.from_env(timeout=_DOCKER_API_TIMEOUT_SECONDS)
         self.run_root = run_root
         self.worker_id = worker_id
         self.parser_image = parser_image
@@ -456,8 +491,27 @@ class DockerSweRuntime:
         self._lock = threading.Lock()
 
     def pull(self, image_ref: str) -> None:
-        with self._lock:
-            self.client.images.pull(image_ref)
+        # A registry/network flake is transient and a pull is idempotent, so this
+        # is the one Docker operation it is safe to retry.  `exec` is deliberately
+        # never retried: rebuild and test commands mutate the sandbox, and
+        # re-running a partially applied command would corrupt graded state.
+        for attempt in range(1, _DOCKER_PULL_ATTEMPTS + 1):
+            try:
+                with self._lock:
+                    self.client.images.pull(image_ref)
+                return
+            except Exception as exc:
+                if attempt == _DOCKER_PULL_ATTEMPTS:
+                    raise
+                _task_event(
+                    image_ref,
+                    "image_pull_retry",
+                    attempt=attempt,
+                    attempt_limit=_DOCKER_PULL_ATTEMPTS,
+                    error_type=type(exc).__name__,
+                    error_detail=_bounded_error_detail(exc),
+                )
+                time.sleep(_DOCKER_PULL_BACKOFF_SECONDS * attempt)
 
     def start(self, task: Mapping[str, object], *, suffix: str) -> Any:
         name = (
@@ -497,6 +551,13 @@ class DockerSweRuntime:
         seconds: int = 900,
         output_chars: int = _SWE_TOOL_OUTPUT_CHARS,
     ) -> tuple[int, str]:
+        # Fail loudly here rather than as a mid-run `ReadTimeout`: a command
+        # budget above the transport timeout cannot ever return its result.
+        if int(seconds) > _DOCKER_MAX_COMMAND_SECONDS:
+            raise CloudManifestError(
+                f"command budget {int(seconds)}s exceeds the "
+                f"{_DOCKER_MAX_COMMAND_SECONDS}s Docker transport budget"
+            )
         wrapped = [
             "bash",
             "-lc",
