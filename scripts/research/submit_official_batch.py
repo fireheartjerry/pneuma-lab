@@ -810,7 +810,6 @@ def submit(
     )
     deadline = time.monotonic() + 900
     compute_arn = _wait_compute(batch, compute_name, deadline=deadline)
-    autoscaling_group = _pin_batch_spot_price(autoscaling, action_id, deadline=deadline)
     batch.create_job_queue(
         jobQueueName=queue_name,
         state="ENABLED",
@@ -881,6 +880,7 @@ def submit(
         propagateTags=True,
         tags=tags,
     )
+    autoscaling_group = _pin_batch_spot_price(autoscaling, action_id, deadline=deadline)
     receipt = {
         "record_kind": "cloud_official_batch_submission_receipt",
         "schema_version": "0.1.0",
