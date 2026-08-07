@@ -35,13 +35,21 @@ from .production_run import ProductionRunSpec, canonical_bytes, canonical_digest
 _SWE_TOOL_OUTPUT_CHARS = 12_000
 _SWE_GRADER_LOG_CHARS = 5_000_000
 _SWE_PREFIX_WORKERS = 2
-# The longest in-container budget this runtime grants a single command is the
-# 3,600-second test-command budget in `DockerSweRuntime.grade`.  docker-py's
-# default socket read timeout is 60 seconds, so every command that outran a
-# minute raised `ReadTimeout` and killed the essential worker mid-run.  Give the
-# transport the full command budget plus margin for the in-container
+# Per-command in-container budgets for the grading path.  A truncated test run
+# does not merely run slow: it reports a task unresolved that the budget alone
+# prevented from finishing, so the budget has to clear the slowest legitimate
+# suite by a wide margin.  A local smoke of `swe:fluent__fluent-bit-10563` sat
+# on one `ctest` case for the entire former 3,600-second budget, which is the
+# shape of grade this must not truncate.
+SWE_APPLY_SECONDS = 300
+SWE_REBUILD_SECONDS = 7_200
+SWE_TEST_SECONDS = 14_400
+SWE_PRINT_SECONDS = 300
+# docker-py's default socket read timeout is 60 seconds, so every command that
+# outran a minute raised `ReadTimeout` and killed the essential worker mid-run.
+# Give the transport the longest command budget plus margin for the in-container
 # `timeout --signal=KILL` wrapper to fire and for output to stream back.
-_DOCKER_MAX_COMMAND_SECONDS = 3_600
+_DOCKER_MAX_COMMAND_SECONDS = SWE_TEST_SECONDS
 _DOCKER_API_MARGIN_SECONDS = 600
 _DOCKER_API_TIMEOUT_SECONDS = _DOCKER_MAX_COMMAND_SECONDS + _DOCKER_API_MARGIN_SECONDS
 _DOCKER_PULL_ATTEMPTS = 3
@@ -667,11 +675,11 @@ class DockerSweRuntime:
             apply_rc, apply_log = self.exec(
                 grader,
                 "git apply --whitespace=nowarn /tmp/pneuma-test.patch",
-                seconds=300,
+                seconds=SWE_APPLY_SECONDS,
             )
             command_receipts: list[dict[str, object]] = []
             for command in cast(list[str], task["rebuild_cmds"]):
-                rc, output = self.exec(grader, command, seconds=1800)
+                rc, output = self.exec(grader, command, seconds=SWE_REBUILD_SECONDS)
                 command_receipts.append(
                     {"kind": "rebuild", "command": command, "rc": rc, "output": output}
                 )
@@ -680,7 +688,7 @@ class DockerSweRuntime:
             test_log = ""
             if apply_rc == 0 and all(row["rc"] == 0 for row in command_receipts):
                 for command in cast(list[str], task["test_cmds"]):
-                    rc, output = self.exec(grader, command, seconds=3600)
+                    rc, output = self.exec(grader, command, seconds=SWE_TEST_SECONDS)
                     command_receipts.append(
                         {"kind": "test", "command": command, "rc": rc, "output": output}
                     )
@@ -689,7 +697,7 @@ class DockerSweRuntime:
                     rc, output = self.exec(
                         grader,
                         command,
-                        seconds=300,
+                        seconds=SWE_PRINT_SECONDS,
                         output_chars=_SWE_GRADER_LOG_CHARS,
                     )
                     command_receipts.append(

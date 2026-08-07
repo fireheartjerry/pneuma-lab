@@ -31,6 +31,71 @@ KEY_REGISTRY = ROOT / "fixtures/cloud/approver-key-registry.json"
 LEDGER = ROOT / "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md"
 ROLE_ORDER = ("controller", "model-server", "benchmark-worker")
 MODEL_REVISION = "95a723d08a9490559dae23d0cff1d9466213d989"
+SEED_NAMES = (
+    "roster",
+    "schedule",
+    "assignment",
+    "packet",
+    "model",
+    "benchmark",
+    "unblind",
+)
+
+
+def _carried_rng(
+    package: Path, commitment_ref: Mapping[str, object]
+) -> dict[str, object]:
+    """Reuse an already-sealed RNG block from a prior package archive.
+
+    The RNG is sealed once, before any execution, and its opened per-task seeds
+    are bound into ``sealed/execution-seeds.controller-only.json`` and
+    ``sealed/prelaunch-root.json``.  Re-deriving it from the raw seed files
+    reproduces exactly these bytes, so carrying the block forward keeps a
+    successor action bound to the same frozen draw.  This exists because a
+    successor action must not be blocked on custody of the raw seed material,
+    and because regenerating seeds would silently repoint the draw away from the
+    sealed assignment and packet authority.
+
+    Everything except the commitment reference is copied verbatim, and anything
+    that would let a different or unsealed draw through is refused.
+    """
+
+    if not package.is_file():
+        raise ValueError(f"carry-forward package is absent: {package}")
+    with tarfile.open(package, "r:*") as archive:
+        member = archive.extractfile("run-spec.json")
+        if member is None:
+            raise ValueError("carry-forward package has no run-spec.json")
+        prior = json.loads(member.read().decode("utf-8"))
+    if not isinstance(prior, dict):
+        raise ValueError("carry-forward run spec is not an object")
+    rng = prior.get("rng")
+    if not isinstance(rng, dict):
+        raise ValueError("carry-forward run spec has no RNG block")
+    if rng.get("status") != "sealed":
+        raise ValueError("carry-forward RNG block is not sealed")
+    if rng.get("contract_id") != "official-study-rng-v1":
+        raise ValueError("carry-forward RNG contract differs")
+    if tuple(rng.get("draw_domains") or ()) != SEED_NAMES:
+        raise ValueError("carry-forward RNG draw domains differ")
+    seeds = rng.get("seeds")
+    if not isinstance(seeds, dict) or set(seeds) != set(SEED_NAMES):
+        raise ValueError("carry-forward RNG seed closure differs")
+    if any(
+        re.fullmatch(r"[0-9a-f]{64}", str(value)) is None for value in seeds.values()
+    ):
+        raise ValueError("carry-forward RNG seed digests are malformed")
+    root = rng.get("root_u64")
+    if type(root) is not int or not 0 <= root < 2**64:
+        raise ValueError("carry-forward RNG root is not an exact uint64")
+    return {
+        "contract_id": rng["contract_id"],
+        "root_u64": root,
+        "draw_domains": list(SEED_NAMES),
+        "seeds": {name: str(seeds[name]) for name in SEED_NAMES},
+        "status": "sealed",
+        "commitment_ref": dict(commitment_ref),
+    }
 
 
 def _sha(path: Path) -> str:
@@ -348,34 +413,29 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
     surface_path = output / "execution-surface.json"
     _write(surface_path, surface)
 
-    secret_root = args.secret_root.resolve()
-    seed_names = (
-        "roster",
-        "schedule",
-        "assignment",
-        "packet",
-        "model",
-        "benchmark",
-        "unblind",
+    commitment_ref = _ref(
+        output,
+        output / "inputs/rng-commitment.json",
+        "rng_commitment",
     )
-    seed_bytes = {
-        name: (secret_root / f"{name}-seed.bin").read_bytes() for name in seed_names
-    }
-    rng = {
-        "contract_id": "official-study-rng-v1",
-        "root_u64": int.from_bytes(seed_bytes["model"][:8], "big"),
-        "draw_domains": list(seed_names),
-        "seeds": {
-            name: hashlib.sha256(value).hexdigest()
-            for name, value in seed_bytes.items()
-        },
-        "status": "sealed",
-        "commitment_ref": _ref(
-            output,
-            output / "inputs/rng-commitment.json",
-            "rng_commitment",
-        ),
-    }
+    if args.carry_forward_rng_from is not None:
+        rng = _carried_rng(args.carry_forward_rng_from.resolve(), commitment_ref)
+    else:
+        secret_root = args.secret_root.resolve()
+        seed_bytes = {
+            name: (secret_root / f"{name}-seed.bin").read_bytes() for name in SEED_NAMES
+        }
+        rng = {
+            "contract_id": "official-study-rng-v1",
+            "root_u64": int.from_bytes(seed_bytes["model"][:8], "big"),
+            "draw_domains": list(SEED_NAMES),
+            "seeds": {
+                name: hashlib.sha256(value).hexdigest()
+                for name, value in seed_bytes.items()
+            },
+            "status": "sealed",
+            "commitment_ref": commitment_ref,
+        }
     task_path = output / "inputs/task-registry.json"
     task_ref = _ref(output, task_path, "task_manifest")
     bindings = [
@@ -682,12 +742,24 @@ def main() -> int:
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--image-set", type=Path, required=True)
     parser.add_argument("--power-report", type=Path, required=True)
-    parser.add_argument("--secret-root", type=Path, required=True)
+    parser.add_argument("--secret-root", type=Path)
+    parser.add_argument(
+        "--carry-forward-rng-from",
+        type=Path,
+        help=(
+            "prior package archive whose already-sealed RNG block this action "
+            "reuses verbatim, instead of re-deriving it from raw seed files"
+        ),
+    )
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--action-id", required=True)
     parser.add_argument("--ledger-row-id", required=True)
     parser.add_argument("--kms-key-id", default="alias/pneuma-approver")
     args = parser.parse_args()
+    if (args.secret_root is None) == (args.carry_forward_rng_from is None):
+        parser.error(
+            "exactly one of --secret-root or --carry-forward-rng-from is required"
+        )
     print(json.dumps(finalize(args), sort_keys=True))
     return 0
 

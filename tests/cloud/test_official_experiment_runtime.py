@@ -26,8 +26,18 @@ def test_docker_transport_budget_covers_longest_command_budget() -> None:
     below that guarantees a mid-run `ReadTimeout` on the essential worker.
     """
 
+    from pneuma_lab.cloud.official_experiment import (
+        SWE_APPLY_SECONDS,
+        SWE_PRINT_SECONDS,
+        SWE_REBUILD_SECONDS,
+        SWE_TEST_SECONDS,
+    )
+
+    longest = max(
+        SWE_APPLY_SECONDS, SWE_REBUILD_SECONDS, SWE_TEST_SECONDS, SWE_PRINT_SECONDS
+    )
+    assert _DOCKER_MAX_COMMAND_SECONDS >= longest
     assert _DOCKER_API_TIMEOUT_SECONDS > _DOCKER_MAX_COMMAND_SECONDS
-    assert _DOCKER_MAX_COMMAND_SECONDS >= 3_600
 
 
 def test_docker_client_is_built_with_the_explicit_transport_budget(

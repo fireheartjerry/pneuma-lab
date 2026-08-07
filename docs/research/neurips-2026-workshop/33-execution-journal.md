@@ -7769,3 +7769,76 @@ rerun.
 
 No experiment design, roster, assignment, packet, power tier, or analysis
 surface was altered. This entry is forensic and mints no authority.
+
+## EJ-20260807-local-swe-runtime-smoke-and-grading-budget-raise
+
+Non-official local smoke of the real `DockerSweRuntime` against
+`swe:fluent__fluent-bit-10563`, the task worker-0 was grading when r8 died.
+Run on a local Docker daemon with the exact r8 benchmark-worker image
+`sha256:7f967dfee0defa6b0f30e9adac579fe929b5b2f6a061894fa930227139f79fc1`.
+No subject model, no simulator, no S3, no assignment, no packet, no arm, and
+no scientific result. Receipt kind `cloud_non_official_swe_runtime_smoke`,
+`authorizing: false`, `scientific_result: false`.
+
+- **Stage timings:** `pull` 0.844s, `start` 0.594s, `exec` 0.109s,
+  `state_digest` 2.047s, `commit` 71.953s, `grade` 3,606.688s. Two stages
+  outran the historical 60-second docker-py default: `commit` and `grade`.
+  `commit` runs on the prefix path of every task, so this directly reproduces
+  the r8 failure mode under the repaired transport and confirms the repair
+  converts a fatal `ReadTimeout` into a completed call.
+- **Grading budget is the binding constraint.** The graded task reported
+  `apply_test_patch_rc: 0`, `observed_check_count: 72` of
+  `registered_check_count: 72`, and `resolved: true`. The `ctest` command
+  consumed approximately 3,540 seconds against the former 3,600-second
+  `test_cmds` budget, roughly 98 percent of it. A truncated test command does
+  not report a slow task, it reports an unresolved one, so a task that crosses
+  the budget on a more contended worker would have been mis-graded rather than
+  merely delayed.
+- **Budget raise (human-operator directive):** `test_cmds` moves from 3,600 to
+  14,400 seconds and `rebuild_cmds` from 1,800 to 7,200 seconds, now named
+  `SWE_TEST_SECONDS` and `SWE_REBUILD_SECONDS` rather than inline literals. The
+  Docker transport budget is derived from the longest of the named budgets, and
+  a regression test asserts the transport always clears it, so a future budget
+  raise cannot silently outrun the transport again. This changes execution
+  budgets only; roster, assignments, packets, arms, power tier, and the
+  analysis graph are untouched.
+- **Consequence for any successor action:** these budgets live in code, so the
+  change moves the source commit. A successor package must rebind
+  `code_commit` and rebuild the three production role images before it can be
+  finalized.
+- **Observation requiring verification before launch (not a result):** the
+  smoke graded a container snapshot taken with no repair applied, yet the task
+  reported `resolved: true` with full check coverage. For a well-formed task
+  the `FAIL_TO_PASS` check should fail at the base commit. This is a single
+  task under a non-official harness and is not an outcome, effect, or claim.
+  It is recorded because benchmark-validity plumbing must be settled before
+  launch, and no unblind, analysis, or arm comparison was performed.
+
+## EJ-20260807-rng-carry-forward-for-successor-actions
+
+`finalize_official_study.py` derived `rng.root_u64` and the seed digests from
+raw `{roster,schedule,assignment,packet,model,benchmark,unblind}-seed.bin`
+files under `--secret-root`. A bounded search of `C:\pneuma-lab`,
+`C:\pneuma-data`, and the operator profile's Documents, Desktop, Downloads,
+and Temp trees found no seed material, so no successor package could be
+finalized. Regenerating seeds was rejected: it would repoint the draw away
+from the sealed assignment and packet authority and thereby alter the frozen
+design.
+
+Under explicit human-operator direction, `finalize_official_study.py` gains
+`--carry-forward-rng-from`, which reuses an already-sealed RNG block verbatim
+from a prior package archive. Exactly one of `--secret-root` or
+`--carry-forward-rng-from` is now required. The RNG is sealed once before any
+execution and its opened per-task seeds are already bound into
+`sealed/execution-seeds.controller-only.json` and `sealed/prelaunch-root.json`,
+so re-deriving from raw seeds would reproduce exactly these bytes. Verified
+against the retained r4 package: the carried block reproduces `root_u64`
+`3559187605953737994` and the sealed seed digests, with only the commitment
+reference rebound to the successor package's own file.
+
+The path is fail-closed. It refuses an unsealed block, a different contract
+ID, altered draw domains, an altered seed closure, malformed seed digests, a
+non-uint64 root, a missing RNG block, and an absent archive.
+
+No package was produced and no submission occurred. Both entries are forensic
+and mint no authority.
