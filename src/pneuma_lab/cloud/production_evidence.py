@@ -220,6 +220,22 @@ class SubprocessBenchmarkAdapter:
         )
 
 
+def _ensure_batch_invariant_attention_backend(
+    command: list[str], environment: Mapping[str, str]
+) -> list[str]:
+    """Pin the deterministic CUDA attention backend required by vLLM 0.19."""
+
+    result = list(command)
+    has_backend = any(
+        argument in {"--attention-backend", "--attention-config.backend"}
+        or argument.startswith("--attention-config=")
+        for argument in result
+    )
+    if environment.get("VLLM_BATCH_INVARIANT") == "1" and not has_backend:
+        result.extend(["--attention-backend", "FLASH_ATTN"])
+    return result
+
+
 def launch_model_server(spec: ProductionRunSpec, *, run_root: Path) -> None:
     """Replace the authorized model-server process with the pinned vLLM argv.
 
@@ -241,12 +257,19 @@ def launch_model_server(spec: ProductionRunSpec, *, run_root: Path) -> None:
     environment = dict(os.environ)
     environment["PNEUMA_RUN_SPEC_SHA256"] = spec.digest
     environment["PNEUMA_MODEL_REVISION"] = OFFICIAL_MODEL_REVISION
+    # vLLM 0.19 does not auto-resolve an attention backend for the registered
+    # Qwen hybrid architecture under batch-invariant mode. FLASH_ATTN is the
+    # supported deterministic CUDA backend on L40S.
+    command = _ensure_batch_invariant_attention_backend(command, environment)
     array_index = environment.get("AWS_BATCH_JOB_ARRAY_INDEX")
     simulator_argv = model_server.get("simulator_launch_argv")
     if array_index == "1" and isinstance(simulator_argv, list) and simulator_argv:
         simulator_command = [cast(str, value) for value in simulator_argv]
         if "vllm.entrypoints.openai.api_server" not in simulator_command:
             raise CloudManifestError("simulator launch is not the registered vLLM server")
+        simulator_command = _ensure_batch_invariant_attention_backend(
+            simulator_command, environment
+        )
         control = run_root / "control"
         control.mkdir(parents=True, exist_ok=True)
         requested = control / "simulator.requested"

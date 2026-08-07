@@ -10,6 +10,7 @@ from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.manifests import validate_production_worker_evidence
 from pneuma_lab.cloud.production_evidence import (
     ProductionWorkerExecutor,
+    _ensure_batch_invariant_attention_backend,
     validate_worker_evidence,
     write_worker_result,
 )
@@ -20,6 +21,17 @@ from pneuma_lab.cloud.production_run import (
     load_bound_json,
     official_authorization_subject_digest,
 )
+
+
+def test_batch_invariant_model_launch_pins_supported_attention_backend() -> None:
+    command = ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    assert _ensure_batch_invariant_attention_backend(
+        command, {"VLLM_BATCH_INVARIANT": "1"}
+    ) == [*command, "--attention-backend", "FLASH_ATTN"]
+    pinned = [*command, "--attention-backend", "TRITON_ATTN"]
+    assert _ensure_batch_invariant_attention_backend(
+        pinned, {"VLLM_BATCH_INVARIANT": "1"}
+    ) == pinned
 
 
 def _binding(root: Path, relative: str, value: object, role: str) -> dict[str, object]:

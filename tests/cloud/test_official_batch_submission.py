@@ -74,6 +74,16 @@ def test_official_multicontainer_resources_fill_one_whole_worker() -> None:
     assert rows[1]["mountPoints"][0]["readOnly"] is False
 
 
+def test_official_runtime_enables_batch_invariance() -> None:
+    rows = MODULE._official_runtime_environment(
+        action_id="official-action",
+        run_spec_sha256="5" * 64,
+        output_uri="s3://bucket/outputs",
+    )
+    environment = {row["name"]: row["value"] for row in rows}
+    assert environment["VLLM_BATCH_INVARIANT"] == "1"
+
+
 def test_image_set_loader_rejects_mutable_tags(tmp_path: Path) -> None:
     path = tmp_path / "images.json"
     path.write_text(

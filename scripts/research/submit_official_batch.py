@@ -683,6 +683,19 @@ def _official_containers(
     ]
 
 
+def _official_runtime_environment(
+    *, action_id: str, run_spec_sha256: str, output_uri: str
+) -> list[dict[str, str]]:
+    """Return the shared environment required by every production role."""
+
+    return [
+        {"name": "PNEUMA_RUN_SPEC_SHA256", "value": run_spec_sha256},
+        {"name": "PNEUMA_OUTPUT_S3_URI", "value": output_uri},
+        {"name": "PNEUMA_HOST_RUN_ROOT", "value": f"/var/lib/{action_id}"},
+        {"name": "VLLM_BATCH_INVARIANT", "value": "1"},
+    ]
+
+
 def submit(
     *,
     action_id: str,
@@ -818,12 +831,11 @@ def submit(
         tags=tags,
     )
     queue_arn = _wait_queue(batch, queue_name, deadline=deadline)
-    common_environment = [
-        {"name": "PNEUMA_RUN_SPEC_SHA256", "value": run_spec_sha256},
-        {"name": "PNEUMA_OUTPUT_S3_URI", "value": output_uri},
-        {"name": "PNEUMA_HOST_RUN_ROOT", "value": f"/var/lib/{action_id}"},
-        {"name": "VLLM_BATCH_INVARIANT", "value": "1"},
-    ]
+    common_environment = _official_runtime_environment(
+        action_id=action_id,
+        run_spec_sha256=run_spec_sha256,
+        output_uri=output_uri,
+    )
     controller_environment = [
         *common_environment,
         {"name": "PNEUMA_PAYLOAD_BUCKET", "value": BUCKET},
