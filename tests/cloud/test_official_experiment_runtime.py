@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from pneuma_lab.cloud.official_experiment import (
+    _SWE_GRADER_LOG_CHARS,
     _SWE_TOOL_OUTPUT_CHARS,
     _TELEMETRY_ERROR_CHARS,
     _task_span,
@@ -26,6 +27,23 @@ def test_swe_shell_output_is_context_bounded() -> None:
     assert return_code == 0
     assert "context-safe truncation" in output
     assert len(output) < _SWE_TOOL_OUTPUT_CHARS + 100
+
+
+def test_swe_internal_grader_output_can_use_larger_parse_bound() -> None:
+    payload = ("a" * (_SWE_TOOL_OUTPUT_CHARS + 1)).encode()
+    container = SimpleNamespace(
+        exec_run=lambda *_args, **_kwargs: SimpleNamespace(
+            output=payload,
+            exit_code=0,
+        )
+    )
+
+    _, output = DockerSweRuntime.exec(
+        container, "true", output_chars=_SWE_GRADER_LOG_CHARS
+    )
+
+    assert "context-safe truncation" not in output
+    assert len(output) == len(payload)
 
 
 def test_task_span_emits_structured_start_and_completion(capsys) -> None:
@@ -99,3 +117,43 @@ def test_vllm_client_adapts_uint64_seed_at_http_boundary(monkeypatch) -> None:
 
     assert captured["seed"] == -1
     assert result["generated_tokens"] == 1
+
+
+def test_swe_parser_overrides_production_image_entrypoint(tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    class Child:
+        @staticmethod
+        def wait(timeout):
+            assert timeout == 120
+            return {"StatusCode": 0}
+
+        @staticmethod
+        def logs():
+            return b""
+
+        @staticmethod
+        def remove(*, force):
+            assert force is True
+
+    class Containers:
+        @staticmethod
+        def run(_image, **kwargs):
+            captured.update(kwargs)
+            output = tmp_path / "parser" / "30cc437973967f87758d" / "output.json"
+            output.write_text('{}\n', encoding="utf-8")
+            return Child()
+
+    runtime = object.__new__(DockerSweRuntime)
+    runtime.run_root = tmp_path
+    runtime.host_run_root = str(tmp_path)
+    runtime.parser_image = "benchmark-image"
+    runtime.client = SimpleNamespace(containers=Containers())
+
+    assert runtime._parse_log("def parser(log): return {}", "", task_id="swe:cthackers__adm-zip-559") == {}
+    assert captured["entrypoint"] == [
+        "python3",
+        "-m",
+        "pneuma_lab.cloud.swe_parser_sandbox",
+    ]
+    assert captured["command"] == ["/sandbox/request.json", "/sandbox/output.json"]

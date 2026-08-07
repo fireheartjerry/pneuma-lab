@@ -33,6 +33,7 @@ from .production_run import ProductionRunSpec, canonical_bytes, canonical_digest
 
 
 _SWE_TOOL_OUTPUT_CHARS = 12_000
+_SWE_GRADER_LOG_CHARS = 5_000_000
 _SWE_PREFIX_WORKERS = 2
 _TELEMETRY_HEARTBEAT_SECONDS = 15.0
 _TELEMETRY_LOCK = threading.Lock()
@@ -489,7 +490,13 @@ class DockerSweRuntime:
         )
 
     @staticmethod
-    def exec(container: Any, command: str, *, seconds: int = 900) -> tuple[int, str]:
+    def exec(
+        container: Any,
+        command: str,
+        *,
+        seconds: int = 900,
+        output_chars: int = _SWE_TOOL_OUTPUT_CHARS,
+    ) -> tuple[int, str]:
         wrapped = [
             "bash",
             "-lc",
@@ -500,8 +507,8 @@ class DockerSweRuntime:
             result.output if isinstance(result.output, bytes) else bytes(result.output)
         )
         text = payload.decode("utf-8", errors="replace")
-        if len(text) > _SWE_TOOL_OUTPUT_CHARS:
-            half = _SWE_TOOL_OUTPUT_CHARS // 2
+        if len(text) > output_chars:
+            half = output_chars // 2
             text = text[:half] + "\n...[context-safe truncation]...\n" + text[-half:]
         return int(result.exit_code), text
 
@@ -558,10 +565,12 @@ class DockerSweRuntime:
         host_dir = f"{self.host_run_root}/parser/{slug}"
         child = self.client.containers.run(
             self.parser_image,
-            command=[
+            entrypoint=[
                 "python3",
                 "-m",
                 "pneuma_lab.cloud.swe_parser_sandbox",
+            ],
+            command=[
                 "/sandbox/request.json",
                 "/sandbox/output.json",
             ],
@@ -616,13 +625,18 @@ class DockerSweRuntime:
                     )
                 outputs = []
                 for command in cast(list[str], task["print_cmds"]):
-                    rc, output = self.exec(grader, command, seconds=300)
+                    rc, output = self.exec(
+                        grader,
+                        command,
+                        seconds=300,
+                        output_chars=_SWE_GRADER_LOG_CHARS,
+                    )
                     command_receipts.append(
                         {
                             "kind": "print",
                             "command": command,
                             "rc": rc,
-                            "output": output,
+                            "output": output[-_SWE_TOOL_OUTPUT_CHARS:],
                         }
                     )
                     outputs.append(output)
