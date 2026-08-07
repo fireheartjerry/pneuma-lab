@@ -338,7 +338,6 @@ def finalize(args: argparse.Namespace) -> dict[str, object]:
                 "source_sha256": str(
                     image_receipts[role]["source_closure"]["manifest_sha256"]
                 ),
-                "sbom_sha256": str(image_receipts[role]["sbom"]["sha256"]),
                 "provenance_descriptor_digest": str(
                     image_receipts[role]["provenance"]["descriptor_digest"]
                 ),

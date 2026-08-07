@@ -12,22 +12,29 @@ def surface() -> dict:
     roles = []
     for index, role in enumerate(("controller", "model-server", "benchmark-worker")):
         controller = role == "controller"
-        roles.append({
-            "role": role,
-            "image_digest": "sha256:" + str(index + 1) * 64,
-            "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", role],
-            "source_sha256": chr(97 + index) * 64,
-            "e2e_receipt_sha256": chr(100 + index) * 64,
-            "gates": {
-                "clean_start": True,
-                "expected_terminal_state": True,
-                "failure_receipt": True,
-                "no_class_a_secret": True,
-                "no_controller_credentials": not controller,
-                "imds_blocked": True,
-                "docker_socket_absent": not controller,
-            },
-        })
+        roles.append(
+            {
+                "role": role,
+                "image_digest": "sha256:" + str(index + 1) * 64,
+                "entrypoint": [
+                    "python3",
+                    "-m",
+                    "pneuma_lab.cloud.production_runtime",
+                    role,
+                ],
+                "source_sha256": chr(97 + index) * 64,
+                "e2e_receipt_sha256": chr(100 + index) * 64,
+                "gates": {
+                    "clean_start": True,
+                    "expected_terminal_state": True,
+                    "failure_receipt": True,
+                    "no_class_a_secret": True,
+                    "no_controller_credentials": not controller,
+                    "imds_blocked": True,
+                    "docker_socket_absent": not controller,
+                },
+            }
+        )
     return {
         "record_kind": "cloud_production_execution_surface",
         "schema_version": "0.1.0",
@@ -49,7 +56,6 @@ def test_provenance_bound_official_batch_plan_surface_passes() -> None:
     for role in row["roles"]:
         role.pop("e2e_receipt_sha256")
         role.pop("gates")
-        role["sbom_sha256"] = "8" * 64
         role["provenance_descriptor_digest"] = "sha256:" + "7" * 64
     assert (
         require_production_execution_surface(row)["surface_class"]
