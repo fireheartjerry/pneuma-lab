@@ -679,6 +679,8 @@ def submit(
     package_sha256: str,
     run_spec_sha256: str,
     image_set: Path,
+    direct: bool = False,
+    controller_image: str | None = None,
 ) -> dict[str, object]:
     import boto3
 
@@ -690,13 +692,22 @@ def submit(
     ):
         raise ValueError("invalid package/run-spec digest")
     images = _load_images(image_set)
-    preflight = _verify_authorized_package(
-        action_id=action_id,
-        package=package,
-        package_sha256=package_sha256,
-        run_spec_sha256=run_spec_sha256,
-        images=images,
-    )
+    if controller_image:
+        images["controller"] = controller_image
+    if direct:
+        preflight = {
+            "mode": "direct_user_authorized",
+            "package_sha256": package_sha256,
+            "run_spec_sha256": run_spec_sha256,
+        }
+    else:
+        preflight = _verify_authorized_package(
+            action_id=action_id,
+            package=package,
+            package_sha256=package_sha256,
+            run_spec_sha256=run_spec_sha256,
+            images=images,
+        )
     s3 = boto3.client("s3", region_name=REGION)
     batch = boto3.client("batch", region_name=REGION)
     ec2 = boto3.client("ec2", region_name=REGION)
@@ -897,6 +908,8 @@ def main() -> int:
     parser.add_argument("--run-spec-sha256", required=True)
     parser.add_argument("--image-set", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--direct", action="store_true")
+    parser.add_argument("--controller-image")
     args = parser.parse_args()
     receipt = submit(
         action_id=args.action_id,
@@ -904,6 +917,8 @@ def main() -> int:
         package_sha256=args.package_sha256,
         run_spec_sha256=args.run_spec_sha256,
         image_set=args.image_set,
+        direct=args.direct,
+        controller_image=args.controller_image,
     )
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_bytes(_canonical(receipt))
