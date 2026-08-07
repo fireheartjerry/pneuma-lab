@@ -1,0 +1,82 @@
+{
+  "record_kind": "cloud_official_study_final_launch_review",
+  "schema_version": "0.1.0",
+  "reviewed_at": "2026-08-07T00:14:16Z",
+  "verdict": "READY_TO_SUBMIT",
+  "action_id": "official-p0-step4b-c120-20260806-r4",
+  "supersedes_terminal_action_id": "official-p0-step4b-c120-20260806-r3",
+  "experiment_submitted": false,
+  "scientific_workload_started": false,
+  "bindings": {
+    "runtime_source_commit": "76094e0f1c0e6d6a740daf088f4bec8959adad03",
+    "launch_surface_commit": "363de4c9d15bd78dba002689f4348e3f6790fbf1",
+    "source_closure_sha256": "d035c91af28eed4b10696a896c3c46c9b056aa4479c6af5971f04846b79f1522",
+    "c120_power_final_sha256": "0e1828fcf53a80e0754a667cec1789d8d794872bae6bf208af600263dc1b4b32",
+    "prelaunch_root_sha256": "7cd87067798371930b71bd2fc648a3f337f03c4bef692651ccb6e443d96c809e",
+    "run_spec_sha256": "264442550c974be94ccad8802eb89072a1c27bedc40b057a202677a7ff477795",
+    "run_spec_subject_sha256": "af34d9decde5b419ebf7559cd25128dd6d910544d9541e20dc75dcddad3d1533",
+    "authorization_sha256": "81ab496d4c39cdca2e644ad8ce224d578162b0473ba3516e4667d638ba968631",
+    "launch_plan_sha256": "ad5ab389fd6513cc82fcd13aec586ca614196bb7f15bbe3367ac796d2dea8b60",
+    "image_set_sha256": "49591f04d94e38ce06441ed5c58a8b264cf1e4e29bf48deb3066f2d8130e81cf",
+    "package_sha256": "2f404a00800136553365dc8fcb6c12cbfe207859ecde277515d4a4e636aa1043",
+    "ledger_row_id": "CL-364"
+  },
+  "registered_surface": {
+    "array_size": 2,
+    "instance_type": "g6e.2xlarge",
+    "spot_vcpu_ceiling": 16,
+    "attempts": 1,
+    "tasks_per_benchmark": 120,
+    "availability_zones": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"],
+    "spot_bid_percentage": 100,
+    "controller": {"vcpus": 1, "memory_mib": 2000, "gpus": 0},
+    "model_server": {"vcpus": 1, "memory_mib": 46000, "gpus": 1},
+    "benchmark_worker": {"vcpus": 6, "memory_mib": 12000, "gpus": 0},
+    "max_duration_seconds": 604800,
+    "max_usd": 5100.0,
+    "teardown_required": true
+  },
+  "images": {
+    "controller": "sha256:eeac17f0e78a92854e142dd7359d7b7848688348d440a5ea382b3a826cf8d6ff",
+    "model_server": "sha256:009fc21d9a909698bc250c8a7c04785aae3bbfed5b0da9b78182d9b2ae055243",
+    "benchmark_worker": "sha256:a4f6183f3ccad1f1114de81dbb208db440dc72200f63f7c6a38b939593a9aa26"
+  },
+  "read_only_account_review": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "spot_g_vcpu_quota": 16.0,
+    "instance_offering_azs": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"],
+    "recent_spot_observations": 20,
+    "maximum_observed_usd_per_instance_hour": 2.2421,
+    "target_subnet_cidrs_free": true,
+    "instance_profile_exact": true,
+    "batch_service_role_exact": true,
+    "kms_key_enabled_for_sign_verify": true,
+    "immutable_ecr_images_present": true,
+    "payload_prefix_readable": true,
+    "preexisting_action_resources": 0,
+    "preexisting_action_package": false,
+    "ecr_endpoint_security_group_id": "sg-0d0d671dd86611d92",
+    "ecr_endpoint_vpc_https_ingress_present": true
+  },
+  "launch_review": {
+    "kms_signature_verified": true,
+    "package_archive_digest_verified": true,
+    "authorization_verified_by_runtime_contract": true,
+    "exact_package_loaded_inside_exact_controller_image": true,
+    "registered_allocation_contract_accepted_by_controller": true,
+    "submission_source_bound_before_mutation": true,
+    "teardown_source_bound_before_mutation": true,
+    "duplicate_resource_tag_regression_passed": true,
+    "identical_package_retry_regression_passed": true,
+    "four_az_spot_topology_bound": true,
+    "focused_submission_cleanup_tests_passed": 8
+  },
+  "power_reuse": {
+    "c120_selected": true,
+    "c120_rerun_required_for_this_frozen_study": false,
+    "c160_status": "FEASIBILITY_NO_GO_NO_ELIGIBLE_ROSTER_EXTENSION",
+    "rerun_only_if_power_critical_design_roster_effect_or_rng_contract_changes": true
+  },
+  "operator_boundary": "The corrected exact submission command is prepared but was intentionally not executed. No AWS Batch SubmitJob call, worker allocation, or scientific workload occurred."
+}

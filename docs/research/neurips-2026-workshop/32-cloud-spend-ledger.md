@@ -411,6 +411,8 @@ stop condition. Pending credits cannot satisfy the inequality.
 
 | CL-363 | 2026-08-06T23:54:41Z | AWS | Official C120 P0/Step-4B launch `official-p0-step4b-c120-20260806-r3` | `aa1c0570e9fd2c1337be658edf98b8bba10744640b05580f6e692ea833e6d0f7` | AWS KMS `alias/pneuma-approver`; exact final authorization | ceiling USD 5,100.00 | 5,100.00 | 0.00 | authorized | One size-two Batch array, two `g6e.2xlarge` Spot workers (16 Spot vCPUs total), one attempt, 120 SWE and 120 TAU tasks, frozen four-arm task-block plan, immutable images/package, durable outputs, and mandatory post-run teardown. |
 
+| CL-364 | 2026-08-07T00:13:36Z | AWS | Official C120 P0/Step-4B launch `official-p0-step4b-c120-20260806-r4` | `af34d9decde5b419ebf7559cd25128dd6d910544d9541e20dc75dcddad3d1533` | AWS KMS `alias/pneuma-approver`; exact final authorization | ceiling USD 5,100.00 | 5,100.00 | 0.00 | authorized | One size-two Batch array, two `g6e.2xlarge` Spot workers (16 Spot vCPUs total), one attempt, 120 SWE and 120 TAU tasks, frozen four-arm task-block plan, immutable images/package, durable outputs, and mandatory post-run teardown. |
+
 ## Totals
 
 | measure | amount |
