@@ -36,6 +36,7 @@ _SWE_TOOL_OUTPUT_CHARS = 12_000
 _SWE_PREFIX_WORKERS = 2
 _TELEMETRY_HEARTBEAT_SECONDS = 15.0
 _TELEMETRY_LOCK = threading.Lock()
+_TELEMETRY_ERROR_CHARS = 1_000
 ARMS = frozenset({"REAL", "SHAM", "NONE", "RESAMPLE"})
 SUBJECT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
 SIMULATOR_MODEL = "Qwen/Qwen3.5-9B"
@@ -57,6 +58,23 @@ def _task_event(task_id: str, phase: str, **details: object) -> None:
     }
     with _TELEMETRY_LOCK:
         print(json.dumps(row, sort_keys=True, separators=(",", ":")), flush=True)
+
+
+def _bounded_error_detail(exc: BaseException) -> str:
+    """Return actionable telemetry without emitting an unbounded traceback."""
+
+    detail = " ".join(str(exc).split())
+    if len(detail) > _TELEMETRY_ERROR_CHARS:
+        detail = detail[: _TELEMETRY_ERROR_CHARS - 3] + "..."
+    return detail
+
+
+def _vllm_seed(seed: int) -> int:
+    """Represent a registered uint64 seed in vLLM's signed-int64 API domain."""
+
+    if type(seed) is not int or not 0 <= seed < 2**64:
+        raise ValueError("vLLM seed adapter requires an exact uint64")
+    return seed if seed < 2**63 else seed - 2**64
 
 
 @contextmanager
@@ -84,6 +102,7 @@ def _task_span(task_id: str, phase: str, **details: object):
             f"{phase}_failed",
             elapsed_seconds=time.monotonic() - started,
             error_type=type(exc).__name__,
+            error_detail=_bounded_error_detail(exc),
             **details,
         )
         raise
@@ -178,7 +197,9 @@ class CoordinationStore:
             if pending:
                 time.sleep(10)
         if pending:
-            raise TimeoutError(f"official coordination barrier timed out: {sorted(pending)}")
+            raise TimeoutError(
+                f"official coordination barrier timed out: {sorted(pending)}"
+            )
 
     def list_relative(self, relative_prefix: str) -> list[str]:
         key_prefix = self._key(relative_prefix).rstrip("/") + "/"
@@ -311,7 +332,9 @@ def serve_simulator_rpc(
                     completed.add(pending.pop(future))
             active = set(pending.values())
             if not store.exists("coordination/tau/worker-0.complete.json"):
-                for relative in store.list_relative("coordination/simulator-rpc/requests"):
+                for relative in store.list_relative(
+                    "coordination/simulator-rpc/requests"
+                ):
                     request_id = Path(relative).stem
                     if request_id in completed or request_id in active:
                         continue
@@ -342,7 +365,7 @@ class VllmChatClient:
         body: dict[str, object] = {
             "model": model,
             "messages": list(messages),
-            "seed": seed,
+            "seed": _vllm_seed(seed),
             "temperature": sampling["temperature"],
             "top_p": sampling["top_p"],
             "top_k": sampling["top_k"],
@@ -436,9 +459,12 @@ class DockerSweRuntime:
             self.client.images.pull(image_ref)
 
     def start(self, task: Mapping[str, object], *, suffix: str) -> Any:
-        name = "pneuma-" + hashlib.sha256(
-            f"{self.worker_id}:{task['task_id']}:{suffix}".encode()
-        ).hexdigest()[:20]
+        name = (
+            "pneuma-"
+            + hashlib.sha256(
+                f"{self.worker_id}:{task['task_id']}:{suffix}".encode()
+            ).hexdigest()[:20]
+        )
         try:
             old = self.client.containers.get(name)
             old.remove(force=True)
@@ -470,7 +496,9 @@ class DockerSweRuntime:
             f"timeout --signal=KILL {int(seconds)}s bash -lc {shlex.quote(command)}",
         ]
         result = container.exec_run(wrapped, workdir="/testbed", demux=False)
-        payload = result.output if isinstance(result.output, bytes) else bytes(result.output)
+        payload = (
+            result.output if isinstance(result.output, bytes) else bytes(result.output)
+        )
         text = payload.decode("utf-8", errors="replace")
         if len(text) > _SWE_TOOL_OUTPUT_CHARS:
             half = _SWE_TOOL_OUTPUT_CHARS // 2
@@ -507,7 +535,9 @@ class DockerSweRuntime:
             archive.addfile(info, io.BytesIO(encoded))
         container.put_archive(parent, stream.getvalue())
 
-    def _parse_log(self, parser_source: str, log: str, *, task_id: str) -> dict[str, str]:
+    def _parse_log(
+        self, parser_source: str, log: str, *, task_id: str
+    ) -> dict[str, str]:
         if parser_source.strip().lower() == "pytest":
             result: dict[str, str] = {}
             for line in log.splitlines():
@@ -521,7 +551,9 @@ class DockerSweRuntime:
         local.mkdir(parents=True, exist_ok=True)
         request = local / "request.json"
         output = local / "output.json"
-        request.write_bytes(canonical_bytes({"parser_source": parser_source, "log": log}))
+        request.write_bytes(
+            canonical_bytes({"parser_source": parser_source, "log": log})
+        )
         output.unlink(missing_ok=True)
         host_dir = f"{self.host_run_root}/parser/{slug}"
         child = self.client.containers.run(
@@ -547,14 +579,17 @@ class DockerSweRuntime:
         child.remove(force=True)
         if int(result["StatusCode"]) != 0 or not output.is_file():
             raise CloudManifestError(
-                "isolated SWE parser failed: " + hashlib.sha256(logs.encode()).hexdigest()
+                "isolated SWE parser failed: "
+                + hashlib.sha256(logs.encode()).hexdigest()
             )
         value = json.loads(output.read_text(encoding="utf-8"))
         if not isinstance(value, dict):
             raise CloudManifestError("isolated SWE parser returned a non-object")
         return {str(key): str(status) for key, status in value.items()}
 
-    def grade(self, image: Any, task: Mapping[str, object], *, suffix: str) -> dict[str, object]:
+    def grade(
+        self, image: Any, task: Mapping[str, object], *, suffix: str
+    ) -> dict[str, object]:
         grader = self.clone(image, task, suffix=f"grade-{suffix}")
         started = time.monotonic()
         try:
@@ -583,7 +618,12 @@ class DockerSweRuntime:
                 for command in cast(list[str], task["print_cmds"]):
                     rc, output = self.exec(grader, command, seconds=300)
                     command_receipts.append(
-                        {"kind": "print", "command": command, "rc": rc, "output": output}
+                        {
+                            "kind": "print",
+                            "command": command,
+                            "rc": rc,
+                            "output": output,
+                        }
                     )
                     outputs.append(output)
                 test_log = "\n".join(outputs) or "\n".join(
@@ -592,12 +632,18 @@ class DockerSweRuntime:
                     if row["kind"] == "test"
                 )
             statuses = (
-                self._parse_log(str(task["log_parser"]), test_log, task_id=str(task["task_id"]))
+                self._parse_log(
+                    str(task["log_parser"]), test_log, task_id=str(task["task_id"])
+                )
                 if apply_rc == 0 and test_log
                 else {}
             )
-            passed = {name for name, status in statuses.items() if "pass" in status.lower()}
-            failed = {name for name, status in statuses.items() if "fail" in status.lower()}
+            passed = {
+                name for name, status in statuses.items() if "pass" in status.lower()
+            }
+            failed = {
+                name for name, status in statuses.items() if "fail" in status.lower()
+            }
             f2p = set(cast(list[str], task["FAIL_TO_PASS"]))
             p2p = set(cast(list[str], task["PASS_TO_PASS"]))
             observed = passed | failed
@@ -699,14 +745,22 @@ class OfficialSweExecutor:
         self.assignments = assignments
         self.openings = openings
         self.assets = assets
-        endpoint = str(cast(Mapping[str, object], spec.value["model_server"])["endpoint"])
-        timeout = int(cast(Mapping[str, object], spec.value["model_server"])["request_timeout_seconds"])
+        endpoint = str(
+            cast(Mapping[str, object], spec.value["model_server"])["endpoint"]
+        )
+        timeout = int(
+            cast(Mapping[str, object], spec.value["model_server"])[
+                "request_timeout_seconds"
+            ]
+        )
         self.model = VllmChatClient(endpoint, request_timeout=timeout)
         self.sampling = sampling
         parser_image = os.environ.get("PNEUMA_BENCHMARK_WORKER_IMAGE_REF")
         host_root = os.environ.get("PNEUMA_HOST_RUN_ROOT")
         if not parser_image or not host_root:
-            raise CloudManifestError("official SWE runtime lacks parser image/host root")
+            raise CloudManifestError(
+                "official SWE runtime lacks parser image/host root"
+            )
         self.docker = DockerSweRuntime(
             run_root=run_root,
             worker_id=worker_id,
@@ -809,9 +863,7 @@ class OfficialSweExecutor:
                         }
                     )
                     _, mutated = self.docker.state_digest(container)
-                    completed = sum(
-                        1 for row in messages if row.get("role") == "tool"
-                    )
+                    completed = sum(1 for row in messages if row.get("role") == "tool")
                     if mutated or completed >= SWE_PREFIX_TOOL_CAP:
                         triggered = True
                         trigger_reason = (
@@ -924,7 +976,9 @@ class OfficialSweExecutor:
                     messages=messages,
                     root_seed=int(slot["model_root_u64"]),
                     call_index=calls - prefix.subject_calls,
-                    max_tokens=min(4096, SWE_BRANCH_TOKEN_CAP - (tokens - prefix.generated_tokens)),
+                    max_tokens=min(
+                        4096, SWE_BRANCH_TOKEN_CAP - (tokens - prefix.generated_tokens)
+                    ),
                 )
                 calls += 1
                 tokens += int(response["generated_tokens"])
@@ -1034,14 +1088,20 @@ class OfficialSweExecutor:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=_SWE_PREFIX_WORKERS
         ) as executor:
-            futures = {task_id: executor.submit(create_prefix, task_id) for task_id in light}
+            futures = {
+                task_id: executor.submit(create_prefix, task_id) for task_id in light
+            }
             for task_id in light:
                 prefixes[task_id] = futures[task_id].result()
         for task_id in heavy:
             prefixes[task_id] = create_prefix(task_id)
         self.store.put_once(
             f"coordination/swe-prefix/{self.worker_id}.complete.json",
-            {"worker_id": self.worker_id, "task_count": len(prefixes), "state": "COMPLETE"},
+            {
+                "worker_id": self.worker_id,
+                "task_count": len(prefixes),
+                "state": "COMPLETE",
+            },
         )
         self.store.wait_for(
             [
@@ -1075,9 +1135,9 @@ class OfficialSweExecutor:
             donor_by_task[task_id] = min(
                 candidates,
                 key=lambda candidate: hashlib.sha256(
-                    (
-                        str(prefix["packet_rank_sha256"]) + "\0" + candidate
-                    ).encode("utf-8")
+                    (str(prefix["packet_rank_sha256"]) + "\0" + candidate).encode(
+                        "utf-8"
+                    )
                 ).digest(),
             )
 
@@ -1087,7 +1147,9 @@ class OfficialSweExecutor:
             assignment = self.assignments[task_id]
             opening_slots = {
                 int(slot["ordinal"]): slot
-                for slot in cast(list[Mapping[str, object]], self.openings[task_id]["slots"])
+                for slot in cast(
+                    list[Mapping[str, object]], self.openings[task_id]["slots"]
+                )
             }
             if not prefix.triggered:
                 slots = [
@@ -1109,12 +1171,19 @@ class OfficialSweExecutor:
                     prefix.packet_text,
                     str(all_prefixes[donor]["packet_text"]),
                 )
-                packet_by_arm = {"REAL": real, "SHAM": sham, "NONE": None, "RESAMPLE": None}
+                packet_by_arm = {
+                    "REAL": real,
+                    "SHAM": sham,
+                    "NONE": None,
+                    "RESAMPLE": None,
+                }
                 slots = []
                 for clear in cast(list[Mapping[str, object]], assignment["slots"]):
                     arm = str(clear["arm"])
                     if arm not in ARMS:
-                        raise CloudManifestError("clear assignment contains an unknown arm")
+                        raise CloudManifestError(
+                            "clear assignment contains an unknown arm"
+                        )
                     slots.append(
                         self._continue_branch(
                             prefix=prefix,
@@ -1157,7 +1226,9 @@ class OfficialSweExecutor:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=_SWE_PREFIX_WORKERS
         ) as executor:
-            futures = {task_id: executor.submit(complete_task, task_id) for task_id in light}
+            futures = {
+                task_id: executor.submit(complete_task, task_id) for task_id in light
+            }
             for task_id in light:
                 futures[task_id].result()
         for task_id in heavy:
@@ -1322,7 +1393,9 @@ class OfficialTauExecutor:
         return TextRunConfig(**values)
 
     @staticmethod
-    def _set_next_seed(orchestrator: Any, root_seed: int, role: str, index: int) -> None:
+    def _set_next_seed(
+        orchestrator: Any, root_seed: int, role: str, index: int
+    ) -> None:
         if role == "primary_subject":
             orchestrator.agent.llm_args["seed"] = derive_call_seed(
                 root_seed, "primary_subject", index
@@ -1345,12 +1418,16 @@ class OfficialTauExecutor:
     def _pending_agent_tool(orchestrator: Any) -> tuple[bool, bool]:
         source = getattr(orchestrator.from_role, "value", str(orchestrator.from_role))
         target = getattr(orchestrator.to_role, "value", str(orchestrator.to_role))
-        if not str(source).lower().endswith("agent") or not str(target).lower().endswith("env"):
+        if not str(source).lower().endswith("agent") or not str(
+            target
+        ).lower().endswith("env"):
             return False, False
         message = orchestrator.message
         calls = getattr(message, "tool_calls", None)
         if not isinstance(calls, list) or len(calls) != 1:
-            raise CloudManifestError("tau2 subject must issue exactly one tool call per boundary")
+            raise CloudManifestError(
+                "tau2 subject must issue exactly one tool call per boundary"
+            )
         name = calls[0].name
         return True, bool(orchestrator.environment._is_mutating_tool(name))
 
@@ -1480,7 +1557,9 @@ class OfficialTauExecutor:
                 tool_calls += 1
                 if mutating or tool_calls >= 4:
                     triggered = True
-                    reason = "first_eligible_mutation" if mutating else "fourth_tool_call"
+                    reason = (
+                        "first_eligible_mutation" if mutating else "fourth_tool_call"
+                    )
         with _task_span(task_id, "prefix_grading", benchmark="TAU"):
             grade = self._grade(orchestrator, task, domain)
         group = str(self.registry_rows[task_id].get("stratum", f"domain:{domain}"))
@@ -1610,7 +1689,9 @@ class OfficialTauExecutor:
 
         prefixes: dict[str, TauPrefix] = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {task_id: executor.submit(create_prefix, task_id) for task_id in task_ids}
+            futures = {
+                task_id: executor.submit(create_prefix, task_id) for task_id in task_ids
+            }
             for task_id in task_ids:
                 prefixes[task_id] = futures[task_id].result()
         donor_by_task: dict[str, str] = {}
@@ -1620,7 +1701,9 @@ class OfficialTauExecutor:
             candidates = [
                 candidate
                 for candidate, other in prefixes.items()
-                if candidate != task_id and other.triggered and other.group == prefix.group
+                if candidate != task_id
+                and other.triggered
+                and other.group == prefix.group
             ]
             if not candidates:
                 raise CloudManifestError("triggered tau2 prefix has no matched donor")
@@ -1634,13 +1717,16 @@ class OfficialTauExecutor:
                     ).encode()
                 ).digest(),
             )
+
         def complete_task(task_id: str) -> None:
             prefix = prefixes[task_id]
             _, task = self._task(task_id)
             assignment = self.assignments[task_id]
             opening_slots = {
                 int(row["ordinal"]): row
-                for row in cast(list[Mapping[str, object]], self.openings[task_id]["slots"])
+                for row in cast(
+                    list[Mapping[str, object]], self.openings[task_id]["slots"]
+                )
             }
             if not prefix.triggered:
                 slots = [
@@ -1706,6 +1792,7 @@ class OfficialTauExecutor:
                 worker_id="worker-0",
                 branch_count=len(slots),
             )
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 task_id: executor.submit(complete_task, task_id) for task_id in task_ids
@@ -1736,7 +1823,9 @@ def load_official_execution_inputs(
     assignment_rows = assignment.get("rows")
     opening_rows = openings.get("rows")
     asset_rows = assets_doc.get("tasks")
-    if not all(isinstance(rows, list) for rows in (assignment_rows, opening_rows, asset_rows)):
+    if not all(
+        isinstance(rows, list) for rows in (assignment_rows, opening_rows, asset_rows)
+    ):
         raise CloudManifestError("official execution rows are malformed")
     assignments = {
         str(row["task_id"]): cast(Mapping[str, object], row)

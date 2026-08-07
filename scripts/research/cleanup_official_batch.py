@@ -119,21 +119,35 @@ def cleanup(*, action_id: str, deadline_seconds: int = 3_600) -> dict[str, objec
                 "refusing teardown while action jobs remain active: "
                 + ",".join(sorted(active))
             )
-        batch.update_job_queue(jobQueue=queue_name, state="DISABLED")
-        mutations.append("disable_job_queue")
+        queue = queues[0]
+        if queue.get("status") != "DELETING":
+            if queue.get("state") != "DISABLED":
+                batch.update_job_queue(jobQueue=queue_name, state="DISABLED")
+                mutations.append("disable_job_queue")
+            _wait(
+                lambda: (
+                    not (
+                        rows := batch.describe_job_queues(jobQueues=[queue_name]).get(
+                            "jobQueues", []
+                        )
+                    )
+                    or (
+                        rows[0].get("state") == "DISABLED"
+                        and rows[0].get("status") == "VALID"
+                    )
+                ),
+                deadline=deadline,
+                label="disabled job queue",
+            )
+            if batch.describe_job_queues(jobQueues=[queue_name]).get("jobQueues", []):
+                batch.delete_job_queue(jobQueue=queue_name)
+                mutations.append("delete_job_queue")
         _wait(
             lambda: (
-                (rows := batch.describe_job_queues(jobQueues=[queue_name]).get("jobQueues", []))
-                and rows[0].get("state") == "DISABLED"
-                and rows[0].get("status") == "VALID"
+                not batch.describe_job_queues(jobQueues=[queue_name]).get(
+                    "jobQueues", []
+                )
             ),
-            deadline=deadline,
-            label="disabled job queue",
-        )
-        batch.delete_job_queue(jobQueue=queue_name)
-        mutations.append("delete_job_queue")
-        _wait(
-            lambda: not batch.describe_job_queues(jobQueues=[queue_name]).get("jobQueues", []),
             deadline=deadline,
             label="deleted job queue",
         )
@@ -142,30 +156,40 @@ def cleanup(*, action_id: str, deadline_seconds: int = 3_600) -> dict[str, objec
         computeEnvironments=[compute_name]
     ).get("computeEnvironments", [])
     if environments:
-        batch.update_compute_environment(
-            computeEnvironment=compute_name, state="DISABLED"
-        )
-        mutations.append("disable_compute_environment")
+        environment = environments[0]
+        if environment.get("status") != "DELETING":
+            if environment.get("state") != "DISABLED":
+                batch.update_compute_environment(
+                    computeEnvironment=compute_name, state="DISABLED"
+                )
+                mutations.append("disable_compute_environment")
+            _wait(
+                lambda: (
+                    not (
+                        rows := batch.describe_compute_environments(
+                            computeEnvironments=[compute_name]
+                        ).get("computeEnvironments", [])
+                    )
+                    or (
+                        rows[0].get("state") == "DISABLED"
+                        and rows[0].get("status") == "VALID"
+                    )
+                ),
+                deadline=deadline,
+                label="disabled compute environment",
+                interval=10,
+            )
+            if batch.describe_compute_environments(
+                computeEnvironments=[compute_name]
+            ).get("computeEnvironments", []):
+                batch.delete_compute_environment(computeEnvironment=compute_name)
+                mutations.append("delete_compute_environment")
         _wait(
             lambda: (
-                (
-                    rows := batch.describe_compute_environments(
-                        computeEnvironments=[compute_name]
-                    ).get("computeEnvironments", [])
-                )
-                and rows[0].get("state") == "DISABLED"
-                and rows[0].get("status") == "VALID"
+                not batch.describe_compute_environments(
+                    computeEnvironments=[compute_name]
+                ).get("computeEnvironments", [])
             ),
-            deadline=deadline,
-            label="disabled compute environment",
-            interval=10,
-        )
-        batch.delete_compute_environment(computeEnvironment=compute_name)
-        mutations.append("delete_compute_environment")
-        _wait(
-            lambda: not batch.describe_compute_environments(
-                computeEnvironments=[compute_name]
-            ).get("computeEnvironments", []),
             deadline=deadline,
             label="deleted compute environment",
             interval=10,
@@ -179,16 +203,21 @@ def cleanup(*, action_id: str, deadline_seconds: int = 3_600) -> dict[str, objec
         mutations.append("deregister_job_definition")
 
     def tagged(filters: list[dict[str, object]], key: str) -> list[dict[str, Any]]:
-        return list(getattr(ec2, key)(Filters=filters).get({
-            "describe_launch_templates": "LaunchTemplates",
-            "describe_security_groups": "SecurityGroups",
-            "describe_network_interfaces": "NetworkInterfaces",
-            "describe_volumes": "Volumes",
-            "describe_instances": "Reservations",
-            "describe_subnets": "Subnets",
-            "describe_route_tables": "RouteTables",
-            "describe_internet_gateways": "InternetGateways",
-        }[key], []))
+        return list(
+            getattr(ec2, key)(Filters=filters).get(
+                {
+                    "describe_launch_templates": "LaunchTemplates",
+                    "describe_security_groups": "SecurityGroups",
+                    "describe_network_interfaces": "NetworkInterfaces",
+                    "describe_volumes": "Volumes",
+                    "describe_instances": "Reservations",
+                    "describe_subnets": "Subnets",
+                    "describe_route_tables": "RouteTables",
+                    "describe_internet_gateways": "InternetGateways",
+                }[key],
+                [],
+            )
+        )
 
     action_filter = [{"Name": "tag:ActionId", "Values": [action_id]}]
     _wait(
@@ -281,15 +310,11 @@ def cleanup(*, action_id: str, deadline_seconds: int = 3_600) -> dict[str, objec
             ],
             "describe_volumes",
         ),
-        "network_interfaces": not tagged(
-            action_filter, "describe_network_interfaces"
-        ),
+        "network_interfaces": not tagged(action_filter, "describe_network_interfaces"),
         "security_groups": not tagged(action_filter, "describe_security_groups"),
         "subnets": not tagged(action_filter, "describe_subnets"),
         "route_tables": not tagged(action_filter, "describe_route_tables"),
-        "internet_gateways": not tagged(
-            action_filter, "describe_internet_gateways"
-        ),
+        "internet_gateways": not tagged(action_filter, "describe_internet_gateways"),
     }
     if not all(absence.values()):
         raise RuntimeError(f"provider absence failed: {absence}")
