@@ -16,6 +16,8 @@ import tempfile
 import time
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from pneuma_lab.cloud.production_run import ProductionRunSpec
 from pneuma_lab.cloud.production_runtime import _extract_package
 
@@ -33,6 +35,8 @@ VPC_ID = "vpc-0577decd080525e86"
 PUBLIC_SUBNET_SPECS = (
     ("us-east-1a", "10.42.100.0/24"),
     ("us-east-1b", "10.42.101.0/24"),
+    ("us-east-1c", "10.42.102.0/24"),
+    ("us-east-1d", "10.42.103.0/24"),
 )
 IMAGE_RE = re.compile(
     r"^892077329800\.dkr\.ecr\.us-east-1\.amazonaws\.com/"
@@ -88,6 +92,16 @@ def _tags(value: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _tag_rows(
+    tags: dict[str, str], *, overrides: dict[str, str] | None = None
+) -> list[dict[str, str]]:
+    """Return one deterministic row per tag key, applying explicit overrides."""
+
+    merged = dict(tags)
+    merged.update(overrides or {})
+    return [{"Key": key, "Value": merged[key]} for key in sorted(merged)]
+
+
 def _require_owned(value: dict[str, Any], action_id: str, label: str) -> None:
     if _tags(value).get("ActionId") != action_id:
         raise RuntimeError(f"existing {label} is not owned by this action")
@@ -138,7 +152,10 @@ def _verify_authorized_package(
             raise ValueError("official package is not authorized for this action")
         run_binding = package_record.get("run_spec_ref")
         run_value = _bound_json(root, run_binding, "run spec")
-        if not isinstance(run_binding, dict) or run_binding.get("sha256") != run_spec_sha256:
+        if (
+            not isinstance(run_binding, dict)
+            or run_binding.get("sha256") != run_spec_sha256
+        ):
             raise ValueError("run-spec argument differs from the package binding")
         spec = ProductionRunSpec.from_mapping(run_value)
         if spec.digest != run_spec_sha256 or spec.value.get("action_id") != action_id:
@@ -162,7 +179,9 @@ def _verify_authorized_package(
         }
         for key, expected in required_launch.items():
             if launch.get(key) != expected:
-                raise ValueError(f"launch plan {key} differs from the registered surface")
+                raise ValueError(
+                    f"launch plan {key} differs from the registered surface"
+                )
         if launch.get("submission_source_sha256") != _sha256(Path(__file__).resolve()):
             raise ValueError("launch plan is not bound to this submission source")
         cleanup_source = Path(__file__).resolve().with_name("cleanup_official_batch.py")
@@ -187,25 +206,31 @@ def _verify_authorized_package(
             "official_package_sha256": package_sha256,
             "run_spec_sha256": run_spec_sha256,
             "launch_plan_sha256": hashlib.sha256(
-                (root / str(package_record["launch_plan_ref"]["relative_path"])).read_bytes()
+                (
+                    root / str(package_record["launch_plan_ref"]["relative_path"])
+                ).read_bytes()
             ).hexdigest(),
             "authorization_sha256": hashlib.sha256(
-                (root / str(package_record["authorization_ref"]["relative_path"])).read_bytes()
+                (
+                    root / str(package_record["authorization_ref"]["relative_path"])
+                ).read_bytes()
             ).hexdigest(),
         }
 
 
 def _wait_compute(batch: Any, name: str, *, deadline: float) -> str:
     while time.monotonic() < deadline:
-        values = batch.describe_compute_environments(
-            computeEnvironments=[name]
-        ).get("computeEnvironments", [])
+        values = batch.describe_compute_environments(computeEnvironments=[name]).get(
+            "computeEnvironments", []
+        )
         if values:
             item = values[0]
             if item.get("status") == "VALID":
                 return str(item["computeEnvironmentArn"])
             if item.get("status") == "INVALID":
-                raise RuntimeError(f"compute environment invalid: {item.get('statusReason')}")
+                raise RuntimeError(
+                    f"compute environment invalid: {item.get('statusReason')}"
+                )
         time.sleep(10)
     raise TimeoutError("compute environment did not become valid")
 
@@ -223,15 +248,72 @@ def _wait_queue(batch: Any, name: str, *, deadline: float) -> str:
     raise TimeoutError("job queue did not become valid")
 
 
-def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tuple[list[str], list[str]]:
-    tag_rows = [{"Key": key, "Value": value} for key, value in tags.items()]
+def _ensure_package_object(
+    s3: Any,
+    *,
+    bucket: str,
+    key: str,
+    package: Path,
+    package_sha256: str,
+    action_id: str,
+) -> None:
+    """Create once, or accept only the byte-identical action-owned object."""
+
+    def verify_existing() -> None:
+        head = s3.head_object(Bucket=bucket, Key=key)
+        metadata = head.get("Metadata", {})
+        if (
+            head.get("ContentLength") != package.stat().st_size
+            or metadata.get("sha256") != package_sha256
+            or metadata.get("action-id") != action_id
+        ):
+            raise RuntimeError("existing official package object differs")
+
+    try:
+        verify_existing()
+        return
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") not in {
+            "404",
+            "NoSuchKey",
+            "NotFound",
+        }:
+            raise
+    try:
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=package.read_bytes(),
+            ServerSideEncryption="AES256",
+            ContentType="application/gzip",
+            IfNoneMatch="*",
+            Metadata={"sha256": package_sha256, "action-id": action_id},
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") not in {
+            "PreconditionFailed",
+            "412",
+        }:
+            raise
+        verify_existing()
+
+
+def _ensure_public_network(
+    ec2: Any, action_id: str, tags: dict[str, str]
+) -> tuple[list[str], list[str]]:
+    tag_rows = _tag_rows(tags)
+    public_egress_tags = _tag_rows(
+        tags, overrides={"Purpose": "official-public-egress"}
+    )
     gateways = ec2.describe_internet_gateways(
         Filters=[{"Name": "attachment.vpc-id", "Values": [VPC_ID]}]
     ).get("InternetGateways", [])
     if gateways:
         gateway_id = str(gateways[0]["InternetGatewayId"])
     else:
-        gateway_id = str(ec2.create_internet_gateway()["InternetGateway"]["InternetGatewayId"])
+        gateway_id = str(
+            ec2.create_internet_gateway()["InternetGateway"]["InternetGatewayId"]
+        )
         ec2.create_tags(Resources=[gateway_id], Tags=tag_rows)
         ec2.attach_internet_gateway(InternetGatewayId=gateway_id, VpcId=VPC_ID)
 
@@ -250,7 +332,7 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
         )
         ec2.create_tags(
             Resources=[route_table_id],
-            Tags=[*tag_rows, {"Key": "Purpose", "Value": "official-public-egress"}],
+            Tags=public_egress_tags,
         )
     routes = ec2.describe_route_tables(RouteTableIds=[route_table_id])["RouteTables"][
         0
@@ -294,10 +376,7 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
                     TagSpecifications=[
                         {
                             "ResourceType": "subnet",
-                            "Tags": [
-                                *tag_rows,
-                                {"Key": "Purpose", "Value": "official-public-egress"},
-                            ],
+                            "Tags": public_egress_tags,
                         }
                     ],
                 )["Subnet"]["SubnetId"]
@@ -309,9 +388,7 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
             Filters=[{"Name": "association.subnet-id", "Values": [subnet_id]}]
         ).get("RouteTables", [])
         if not associations:
-            ec2.associate_route_table(
-                RouteTableId=route_table_id, SubnetId=subnet_id
-            )
+            ec2.associate_route_table(RouteTableId=route_table_id, SubnetId=subnet_id)
         elif associations[0]["RouteTableId"] != route_table_id:
             association = next(
                 (
@@ -359,7 +436,9 @@ def _ensure_public_network(ec2: Any, action_id: str, tags: dict[str, str]) -> tu
     return subnet_ids, [group_id]
 
 
-def _ensure_launch_template(ec2: Any, action_id: str, tags: dict[str, str]) -> tuple[str, str]:
+def _ensure_launch_template(
+    ec2: Any, action_id: str, tags: dict[str, str]
+) -> tuple[str, str]:
     name = f"{action_id}-worker"[:128]
     templates = ec2.describe_launch_templates(
         Filters=[{"Name": "launch-template-name", "Values": [name]}]
@@ -389,9 +468,7 @@ fi
     response = ec2.create_launch_template(
         LaunchTemplateName=name,
         VersionDescription="official-c120-v1",
-        TagSpecifications=[
-            {"ResourceType": "launch-template", "Tags": tag_rows}
-        ],
+        TagSpecifications=[{"ResourceType": "launch-template", "Tags": tag_rows}],
         LaunchTemplateData={
             "BlockDeviceMappings": [
                 {
@@ -568,9 +645,10 @@ def submit(
 
     if ACTION_RE.fullmatch(action_id) is None:
         raise ValueError("invalid action ID")
-    if DIGEST_RE.fullmatch(package_sha256) is None or DIGEST_RE.fullmatch(
-        run_spec_sha256
-    ) is None:
+    if (
+        DIGEST_RE.fullmatch(package_sha256) is None
+        or DIGEST_RE.fullmatch(run_spec_sha256) is None
+    ):
         raise ValueError("invalid package/run-spec digest")
     images = _load_images(image_set)
     preflight = _verify_authorized_package(
@@ -612,20 +690,17 @@ def submit(
                 "Effect": "Allow",
                 "Action": ["s3:ListBucket"],
                 "Resource": f"arn:aws:s3:::{BUCKET}",
-                "Condition": {
-                    "StringLike": {"s3:prefix": [f"{output_prefix}/*"]}
-                },
+                "Condition": {"StringLike": {"s3:prefix": [f"{output_prefix}/*"]}},
             },
         ],
     }
-    s3.put_object(
-        Bucket=BUCKET,
-        Key=package_key,
-        Body=package.read_bytes(),
-        ServerSideEncryption="AES256",
-        ContentType="application/gzip",
-        IfNoneMatch="*",
-        Metadata={"sha256": package_sha256, "action-id": action_id},
+    _ensure_package_object(
+        s3,
+        bucket=BUCKET,
+        key=package_key,
+        package=package,
+        package_sha256=package_sha256,
+        action_id=action_id,
     )
     iam.put_role_policy(
         RoleName="pneuma-c160-worker",
@@ -654,6 +729,7 @@ def submit(
         computeResources={
             "type": "SPOT",
             "allocationStrategy": "SPOT_PRICE_CAPACITY_OPTIMIZED",
+            "bidPercentage": 100,
             "minvCpus": 0,
             "maxvCpus": 16,
             "desiredvCpus": 0,
@@ -693,7 +769,10 @@ def submit(
     ]
     benchmark_environment = [
         *common_environment,
-        {"name": "PNEUMA_BENCHMARK_WORKER_IMAGE_REF", "value": images["benchmark-worker"]},
+        {
+            "name": "PNEUMA_BENCHMARK_WORKER_IMAGE_REF",
+            "value": images["benchmark-worker"],
+        },
     ]
     containers = _official_containers(
         images=images,

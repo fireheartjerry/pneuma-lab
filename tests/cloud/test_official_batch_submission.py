@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -42,24 +43,33 @@ def test_official_multicontainer_resources_fill_one_whole_worker() -> None:
         benchmark_environment=[],
     )
     resources = [row["resourceRequirements"] for row in rows]
-    assert sum(
-        int(item["value"])
-        for group in resources
-        for item in group
-        if item["type"] == "VCPU"
-    ) == 8
-    assert sum(
-        int(item["value"])
-        for group in resources
-        for item in group
-        if item["type"] == "MEMORY"
-    ) == 60000
-    assert sum(
-        int(item["value"])
-        for group in resources
-        for item in group
-        if item["type"] == "GPU"
-    ) == 1
+    assert (
+        sum(
+            int(item["value"])
+            for group in resources
+            for item in group
+            if item["type"] == "VCPU"
+        )
+        == 8
+    )
+    assert (
+        sum(
+            int(item["value"])
+            for group in resources
+            for item in group
+            if item["type"] == "MEMORY"
+        )
+        == 60000
+    )
+    assert (
+        sum(
+            int(item["value"])
+            for group in resources
+            for item in group
+            if item["type"] == "GPU"
+        )
+        == 1
+    )
     assert rows[2]["privileged"] is True
     assert rows[1]["mountPoints"][0]["readOnly"] is False
 
@@ -103,3 +113,60 @@ def test_submit_refuses_reused_network_resource_from_another_action() -> None:
     MODULE._require_owned(value, "action-a", "test resource")
     with pytest.raises(RuntimeError, match="not owned"):
         MODULE._require_owned(value, "action-b", "test resource")
+
+
+def test_tag_rows_override_without_duplicate_keys() -> None:
+    rows = MODULE._tag_rows(
+        {"Project": "pneuma-lab", "Purpose": "official-p0-step4b"},
+        overrides={"Purpose": "official-public-egress"},
+    )
+    assert rows == [
+        {"Key": "Project", "Value": "pneuma-lab"},
+        {"Key": "Purpose", "Value": "official-public-egress"},
+    ]
+
+
+class _ExistingPackageS3:
+    def __init__(self, *, size: int, digest: str, action_id: str) -> None:
+        self.size = size
+        self.digest = digest
+        self.action_id = action_id
+        self.put_calls = 0
+
+    def head_object(self, **_: object) -> dict[str, object]:
+        return {
+            "ContentLength": self.size,
+            "Metadata": {"sha256": self.digest, "action-id": self.action_id},
+        }
+
+    def put_object(self, **_: object) -> None:
+        self.put_calls += 1
+
+
+def test_package_staging_accepts_only_identical_existing_object(tmp_path: Path) -> None:
+    package = tmp_path / "package.tar.gz"
+    package.write_bytes(b"authorized-package")
+    digest = hashlib.sha256(package.read_bytes()).hexdigest()
+    s3 = _ExistingPackageS3(
+        size=package.stat().st_size, digest=digest, action_id="action-r4"
+    )
+    MODULE._ensure_package_object(
+        s3,
+        bucket="bucket",
+        key="key",
+        package=package,
+        package_sha256=digest,
+        action_id="action-r4",
+    )
+    assert s3.put_calls == 0
+
+    s3.digest = "0" * 64
+    with pytest.raises(RuntimeError, match="differs"):
+        MODULE._ensure_package_object(
+            s3,
+            bucket="bucket",
+            key="key",
+            package=package,
+            package_sha256=digest,
+            action_id="action-r4",
+        )
