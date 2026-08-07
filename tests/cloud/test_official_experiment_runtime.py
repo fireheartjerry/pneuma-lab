@@ -341,3 +341,66 @@ def test_wait_for_raises_when_the_deadline_passes(monkeypatch) -> None:
         CoordinationStore.wait_for(
             store, ["missing.json"], deadline=__import__("time").monotonic() - 1
         )
+
+
+def _exec_capture(container_env: list[str] | None) -> str:
+    captured: dict[str, object] = {}
+
+    def exec_run(command, **_kwargs):
+        captured["command"] = command
+        return SimpleNamespace(output=b"", exit_code=0)
+
+    attrs = {"Config": {"Env": container_env}} if container_env is not None else {}
+    container = SimpleNamespace(attrs=attrs, exec_run=exec_run)
+    DockerSweRuntime.exec(container, "go build ./...", seconds=60)
+    return str(captured["command"][2])
+
+
+def test_exec_restores_the_image_path_over_the_login_shell() -> None:
+    """Regression: a login shell's /etc/profile overwrites PATH.
+
+    Debian's /etc/profile replaces PATH with a hardcoded default, discarding
+    the image's configured PATH.  Toolchains installed outside that default --
+    Go at /usr/local/go/bin, Rust's cargo -- then fail `command not found` in
+    every arm, which grades as an unresolved task rather than an error.  A
+    local screen saw 8 of 16 sampled tasks observe zero registered checks;
+    restoring the PATH rescued 3 of the 4 retried, one to full observation.
+    """
+
+    wrapped = _exec_capture(["FOO=bar", "PATH=/go/bin:/usr/local/go/bin:/usr/bin"])
+
+    assert wrapped.startswith("PATH=")
+    assert "/usr/local/go/bin" in wrapped
+    # The outer shell stays a login shell so profile setup still runs, but the
+    # command itself must run non-login or the restored PATH is clobbered again.
+    assert "bash -c " in wrapped
+    assert "bash -lc " not in wrapped
+
+
+def test_exec_keeps_the_outer_login_shell() -> None:
+    captured: dict[str, object] = {}
+
+    def exec_run(command, **_kwargs):
+        captured["command"] = command
+        return SimpleNamespace(output=b"", exit_code=0)
+
+    container = SimpleNamespace(
+        attrs={"Config": {"Env": ["PATH=/usr/bin"]}}, exec_run=exec_run
+    )
+    DockerSweRuntime.exec(container, "true", seconds=60)
+
+    assert captured["command"][:2] == ["bash", "-lc"]
+
+
+def test_exec_without_an_image_path_adds_no_prefix() -> None:
+    wrapped = _exec_capture(None)
+
+    assert wrapped.startswith("timeout ")
+
+
+def test_exec_quotes_a_shell_hostile_image_path() -> None:
+    """A PATH carrying shell metacharacters must not escape its assignment."""
+
+    wrapped = _exec_capture(["PATH=/opt/a b;touch /tmp/pneuma-injected:/usr/bin"])
+
+    assert "'/opt/a b;touch /tmp/pneuma-injected:/usr/bin'" in wrapped

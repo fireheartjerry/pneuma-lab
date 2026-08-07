@@ -94,6 +94,22 @@ def _bounded_error_detail(exc: BaseException) -> str:
     return detail
 
 
+def _image_path(container: Any) -> str:
+    """Return the PATH the container image configured, or an empty string."""
+
+    config = getattr(container, "attrs", None)
+    if not isinstance(config, Mapping):
+        return ""
+    entries = config.get("Config")
+    values = entries.get("Env") if isinstance(entries, Mapping) else None
+    if not isinstance(values, (list, tuple)):
+        return ""
+    for entry in values:
+        if isinstance(entry, str) and entry.startswith("PATH="):
+            return entry[len("PATH=") :]
+    return ""
+
+
 def _vllm_seed(seed: int) -> int:
     """Represent a registered uint64 seed in vLLM's signed-int64 API domain."""
 
@@ -566,10 +582,21 @@ class DockerSweRuntime:
                 f"command budget {int(seconds)}s exceeds the "
                 f"{_DOCKER_MAX_COMMAND_SECONDS}s Docker transport budget"
             )
+        # A login shell sources /etc/profile, which on Debian overwrites PATH
+        # with a hardcoded default and so discards the image's configured PATH.
+        # Task toolchains installed outside that default -- Go at
+        # /usr/local/go/bin, Rust's cargo -- then fail `command not found` in
+        # every arm, which grades as an unresolved task rather than an error.
+        # Keep the outer login shell so profile setup still runs, restore the
+        # image PATH ahead of it, and run the command itself in a non-login
+        # shell so the restored PATH survives.
+        image_path = _image_path(container)
+        prefix = f'PATH={shlex.quote(image_path)}:"$PATH" ' if image_path else ""
         wrapped = [
             "bash",
             "-lc",
-            f"timeout --signal=KILL {int(seconds)}s bash -lc {shlex.quote(command)}",
+            f"{prefix}timeout --signal=KILL {int(seconds)}s "
+            f"bash -c {shlex.quote(command)}",
         ]
         result = container.exec_run(wrapped, workdir="/testbed", demux=False)
         payload = (
